@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MarkdownEditor } from "@/components/markdown/markdown-editor";
 import { RepoPicker } from "@/components/repo-picker/repo-picker";
+import { AnalyzePrompt } from "./analyze-prompt";
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -72,17 +73,26 @@ export function CreateProjectDialog({
             {t("project.targetRepoPath")}
           </label>
           {targetRepoPath ? (
-            <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-gray-50">
-              <span className="text-sm font-mono flex-1 truncate">
-                {targetRepoPath}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setTargetRepoPath("")}
-              >
-                {locale === "zh" ? "重选" : "Change"}
-              </Button>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-gray-50">
+                <span className="text-sm font-mono flex-1 truncate">
+                  {targetRepoPath}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTargetRepoPath("")}
+                >
+                  {locale === "zh" ? "重选" : "Change"}
+                </Button>
+              </div>
+              {!description && (
+                <AnalyzePrompt
+                  repoPath={targetRepoPath}
+                  isZh={locale === "zh"}
+                  onResult={(desc) => setDescription(desc)}
+                />
+              )}
             </div>
           ) : (
             <RepoPicker

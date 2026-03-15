@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkdownEditor } from "@/components/markdown/markdown-editor";
 import { RepoPicker } from "@/components/repo-picker/repo-picker";
+import { AnalyzePrompt } from "@/components/project/analyze-prompt";
 
 interface OnboardingGuideProps {
   locale: string;
@@ -488,11 +489,20 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
                   {t("project.targetRepoPath")}
                 </label>
                 {targetRepoPath ? (
-                  <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-gray-50">
-                    <span className="text-sm font-mono flex-1 truncate">{targetRepoPath}</span>
-                    <Button variant="ghost" size="sm" onClick={() => setTargetRepoPath("")}>
-                      {isZh ? "重选" : "Change"}
-                    </Button>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-gray-50">
+                      <span className="text-sm font-mono flex-1 truncate">{targetRepoPath}</span>
+                      <Button variant="ghost" size="sm" onClick={() => setTargetRepoPath("")}>
+                        {isZh ? "重选" : "Change"}
+                      </Button>
+                    </div>
+                    {!description && (
+                      <AnalyzePrompt
+                        repoPath={targetRepoPath}
+                        isZh={isZh}
+                        onResult={(desc) => setDescription(desc)}
+                      />
+                    )}
                   </div>
                 ) : (
                   <RepoPicker
