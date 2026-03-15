@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ interface OnboardingGuideProps {
   }) => void;
 }
 
-const STEPS = ["welcome", "concept", "create"] as const;
+const STEPS = ["welcome", "github", "concept", "create"] as const;
 type Step = (typeof STEPS)[number];
 
 export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
@@ -25,8 +25,26 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [targetRepoPath, setTargetRepoPath] = useState("");
+  const [githubStatus, setGithubStatus] = useState<{
+    authenticated: boolean;
+    ghInstalled: boolean;
+    username: string;
+  } | null>(null);
+  const [checkingAuth, setCheckingAuth] = useState(false);
 
   const isZh = locale === "zh";
+
+  const checkGithubAuth = async () => {
+    setCheckingAuth(true);
+    try {
+      const res = await fetch("/api/github/auth");
+      const data = await res.json();
+      setGithubStatus(data);
+    } catch {
+      setGithubStatus({ authenticated: false, ghInstalled: false, username: "" });
+    }
+    setCheckingAuth(false);
+  };
 
   const handleCreate = () => {
     if (!name || !targetRepoPath) return;
@@ -36,7 +54,7 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
   return (
     <div className="min-h-[60vh] flex items-center justify-center">
       <div className="max-w-2xl w-full">
-        {/* Welcome */}
+        {/* Step 1: Welcome */}
         {step === "welcome" && (
           <div className="text-center space-y-6">
             <h1 className="text-4xl font-bold">
@@ -48,8 +66,14 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
                 : "AI-powered agent development tool. From design to implementation, all in one place."}
             </p>
             <div className="flex justify-center gap-3 pt-4">
-              <Button size="lg" onClick={() => setStep("concept")}>
-                {isZh ? "开始了解" : "Get Started"}
+              <Button
+                size="lg"
+                onClick={() => {
+                  setStep("github");
+                  checkGithubAuth();
+                }}
+              >
+                {isZh ? "开始设置" : "Get Started"}
               </Button>
               <Button
                 size="lg"
@@ -62,7 +86,96 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
           </div>
         )}
 
-        {/* Concept */}
+        {/* Step 2: GitHub Authorization */}
+        {step === "github" && (
+          <div className="space-y-6">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold">
+                {isZh ? "连接 GitHub" : "Connect GitHub"}
+              </h2>
+              <p className="text-gray-500 mt-1">
+                {isZh
+                  ? "连接 GitHub 后可以直接从仓库列表选择项目。不连接也可以从本地目录选择。"
+                  : "Connect GitHub to select repos directly. You can also use local directories without GitHub."}
+              </p>
+            </div>
+
+            <div className="rounded-lg border bg-white p-6">
+              {checkingAuth ? (
+                <div className="text-center py-8 text-gray-400">
+                  {isZh ? "检查中..." : "Checking..."}
+                </div>
+              ) : !githubStatus?.ghInstalled ? (
+                // gh CLI not installed
+                <div className="text-center space-y-4 py-4">
+                  <div className="text-4xl">⚠️</div>
+                  <p className="text-gray-600">
+                    {isZh
+                      ? "未检测到 GitHub CLI (gh)。安装后可以连接 GitHub 仓库。"
+                      : "GitHub CLI (gh) not detected. Install it to connect GitHub repos."}
+                  </p>
+                  <a
+                    href="https://cli.github.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-sm"
+                  >
+                    https://cli.github.com
+                  </a>
+                  <div className="pt-2">
+                    <Button variant="secondary" onClick={checkGithubAuth}>
+                      {isZh ? "重新检测" : "Re-check"}
+                    </Button>
+                  </div>
+                </div>
+              ) : githubStatus.authenticated ? (
+                // Already authenticated
+                <div className="text-center space-y-4 py-4">
+                  <div className="text-4xl">✓</div>
+                  <p className="text-gray-800 font-medium">
+                    {isZh
+                      ? `已连接 GitHub：${githubStatus.username}`
+                      : `Connected to GitHub: ${githubStatus.username}`}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {isZh
+                      ? "创建项目时可以从 GitHub 仓库列表选择。"
+                      : "You can select from your GitHub repos when creating a project."}
+                  </p>
+                </div>
+              ) : (
+                // gh installed but not authenticated
+                <div className="text-center space-y-4 py-4">
+                  <div className="text-4xl">🔗</div>
+                  <p className="text-gray-600">
+                    {isZh
+                      ? "GitHub CLI 已安装，但尚未登录。在终端运行以下命令："
+                      : "GitHub CLI is installed but not logged in. Run this in your terminal:"}
+                  </p>
+                  <code className="block bg-gray-100 rounded-md px-4 py-2 text-sm font-mono">
+                    gh auth login
+                  </code>
+                  <div className="pt-2">
+                    <Button variant="secondary" onClick={checkGithubAuth}>
+                      {isZh ? "登录后点击重新检测" : "Re-check after login"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-between">
+              <Button variant="ghost" onClick={() => setStep("welcome")}>
+                {t("common.back")}
+              </Button>
+              <Button size="lg" onClick={() => setStep("concept")}>
+                {isZh ? "继续" : "Continue"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Core Workflow */}
         {step === "concept" && (
           <div className="space-y-8">
             <h2 className="text-2xl font-bold text-center">
@@ -127,7 +240,10 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
               ))}
             </div>
 
-            <div className="flex justify-center pt-2">
+            <div className="flex justify-between pt-2">
+              <Button variant="ghost" onClick={() => setStep("github")}>
+                {t("common.back")}
+              </Button>
               <Button size="lg" onClick={() => setStep("create")}>
                 {isZh ? "创建第一个项目" : "Create Your First Project"}
               </Button>
@@ -135,7 +251,7 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
           </div>
         )}
 
-        {/* Create first project */}
+        {/* Step 4: Create first project */}
         {step === "create" && (
           <div className="space-y-6">
             <div className="text-center">
@@ -189,6 +305,7 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
                 ) : (
                   <RepoPicker
                     locale={locale}
+                    githubAuthed={githubStatus?.authenticated || false}
                     onSelect={(path) => {
                       setTargetRepoPath(path);
                       if (!name) {

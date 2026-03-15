@@ -22,9 +22,10 @@ interface GitHubRepo {
 interface RepoPickerProps {
   onSelect: (path: string) => void;
   locale: string;
+  githubAuthed?: boolean;
 }
 
-export function RepoPicker({ onSelect, locale }: RepoPickerProps) {
+export function RepoPicker({ onSelect, locale, githubAuthed = false }: RepoPickerProps) {
   const isZh = locale === "zh";
   const [tab, setTab] = useState<"local" | "github">("local");
 
@@ -41,16 +42,18 @@ export function RepoPicker({ onSelect, locale }: RepoPickerProps) {
         >
           {isZh ? "本地目录" : "Local Directory"}
         </button>
-        <button
-          onClick={() => setTab("github")}
-          className={`py-2 px-3 text-sm font-medium border-b-2 ${
-            tab === "github"
-              ? "border-blue-600 text-blue-600"
-              : "border-transparent text-gray-500"
-          }`}
-        >
-          GitHub
-        </button>
+        {githubAuthed && (
+          <button
+            onClick={() => setTab("github")}
+            className={`py-2 px-3 text-sm font-medium border-b-2 ${
+              tab === "github"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500"
+            }`}
+          >
+            GitHub
+          </button>
+        )}
       </div>
 
       {tab === "local" ? (

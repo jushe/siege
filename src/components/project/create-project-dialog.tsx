@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTranslations, useLocale } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,16 @@ export function CreateProjectDialog({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [targetRepoPath, setTargetRepoPath] = useState("");
+  const [githubAuthed, setGithubAuthed] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      fetch("/api/github/auth")
+        .then((r) => r.json())
+        .then((d) => setGithubAuthed(d.authenticated))
+        .catch(() => setGithubAuthed(false));
+    }
+  }, [open]);
 
   const handleSubmit = () => {
     if (!name || !targetRepoPath) return;
@@ -77,6 +87,7 @@ export function CreateProjectDialog({
           ) : (
             <RepoPicker
               locale={locale}
+              githubAuthed={githubAuthed}
               onSelect={(path) => {
                 setTargetRepoPath(path);
                 // Auto-fill name from directory if empty
