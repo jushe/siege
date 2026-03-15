@@ -4,7 +4,7 @@ import { plans, projects, schemes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { generateSchemeStream } from "@/lib/ai/scheme-generator";
 import { hasApiKey } from "@/lib/ai/config";
-import { generateViaCli } from "@/lib/ai/cli-fallback";
+import { generateTextAuto } from "@/lib/ai/generate";
 import type { Provider } from "@/lib/ai/provider";
 import { parseJsonBody } from "@/lib/utils";
 
@@ -31,6 +31,26 @@ Output in Markdown with sections:
 Be specific, actionable, and practical.`;
 }
 
+function saveScheme(planId: string, content: string, planStatus: string) {
+  const db = getDb();
+  db.insert(schemes)
+    .values({
+      id: crypto.randomUUID(),
+      planId,
+      title: "Generated Scheme",
+      content,
+      sourceType: "web_search",
+    })
+    .run();
+
+  if (planStatus === "draft") {
+    db.update(plans)
+      .set({ status: "reviewing", updatedAt: new Date().toISOString() })
+      .where(eq(plans.id, planId))
+      .run();
+  }
+}
+
 export async function POST(req: NextRequest) {
   const [body, errRes] = await parseJsonBody(req);
   if (errRes) return errRes;
@@ -41,10 +61,7 @@ export async function POST(req: NextRequest) {
   };
 
   if (!planId) {
-    return NextResponse.json(
-      { error: "planId is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "planId is required" }, { status: 400 });
   }
 
   const db = getDb();
@@ -59,75 +76,39 @@ export async function POST(req: NextRequest) {
     .where(eq(projects.id, plan.projectId))
     .get();
   if (!project) {
-    return NextResponse.json(
-      { error: "Project not found" },
-      { status: 404 }
-    );
+    return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
+
+  const prompt = buildSchemePrompt(
+    plan.name,
+    plan.description || "",
+    project.name,
+    project.targetRepoPath
+  );
 
   const useCliMode = !hasApiKey(provider || "anthropic");
 
   if (useCliMode) {
-    // Fallback: use claude CLI (leverages claude login)
-    const prompt = buildSchemePrompt(
-      plan.name,
-      plan.description || "",
-      project.name,
-      project.targetRepoPath
-    );
-
-    const stream = generateViaCli(prompt);
-
-    // Tee the stream: one for response, one for collecting full text
-    const [responseStream, collectStream] = stream.tee();
-
-    // Collect full text in background and save to DB
-    (async () => {
-      const reader = collectStream.getReader();
-      const decoder = new TextDecoder();
-      let fullText = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fullText += decoder.decode(value, { stream: true });
-      }
-
-      const cleanText = fullText.trim();
-
-      if (cleanText) {
-        const id = crypto.randomUUID();
-        db.insert(schemes)
-          .values({
-            id,
-            planId,
-            title: "Generated Scheme",
-            content: cleanText,
-            sourceType: "web_search",
-          })
-          .run();
-
-        if (plan.status === "draft") {
-          db.update(plans)
-            .set({ status: "reviewing", updatedAt: new Date().toISOString() })
-            .where(eq(plans.id, planId))
-            .run();
+    // Async: generate in background, return 202 immediately
+    generateTextAuto({
+      provider: provider || "anthropic",
+      model,
+      system: "",
+      prompt,
+    })
+      .then((text) => {
+        if (text.trim()) {
+          saveScheme(planId, text.trim(), plan.status);
         }
-      }
-    })().catch((err) => {
-      console.error(`[scheme-generate] CLI fallback save failed:`, err);
-    });
+      })
+      .catch((err) => {
+        console.error(`[scheme-generate] CLI failed:`, err);
+      });
 
-    return new Response(responseStream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache, no-transform",
-        Connection: "keep-alive",
-        "X-Accel-Buffering": "no",
-      },
-    });
+    return NextResponse.json({ status: "generating" }, { status: 202 });
   }
 
-  // SDK mode: has API key
+  // SDK mode: has API key — use streaming
   const result = generateSchemeStream({
     planName: plan.name,
     planDescription: plan.description || "",
@@ -141,29 +122,12 @@ export async function POST(req: NextRequest) {
 
   Promise.resolve(result.text)
     .then((fullText) => {
-      const id = crypto.randomUUID();
-      db.insert(schemes)
-        .values({
-          id,
-          planId,
-          title: "Generated Scheme",
-          content: fullText,
-          sourceType: "web_search",
-        })
-        .run();
-
-      if (plan.status === "draft") {
-        db.update(plans)
-          .set({ status: "reviewing", updatedAt: new Date().toISOString() })
-          .where(eq(plans.id, planId))
-          .run();
+      if (fullText.trim()) {
+        saveScheme(planId, fullText.trim(), plan.status);
       }
     })
     .catch((err) => {
-      console.error(
-        `[scheme-generate] SDK save failed for plan ${planId}:`,
-        err
-      );
+      console.error(`[scheme-generate] SDK failed:`, err);
     });
 
   return response;
