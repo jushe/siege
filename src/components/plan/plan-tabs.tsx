@@ -1,0 +1,65 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { Tabs } from "@/components/ui/tabs";
+import { SchemeList } from "@/components/scheme/scheme-list";
+
+interface PlanTabsProps {
+  planId: string;
+  planStatus: string;
+  onPlanStatusChange: () => void;
+}
+
+export function PlanTabs({
+  planId,
+  planStatus,
+  onPlanStatusChange,
+}: PlanTabsProps) {
+  const t = useTranslations();
+
+  const tabs = [
+    {
+      id: "schemes",
+      label: t("plan.tabs.schemes"),
+      content: (
+        <SchemeList
+          planId={planId}
+          planStatus={planStatus}
+          onPlanStatusChange={onPlanStatusChange}
+        />
+      ),
+    },
+    {
+      id: "schedule",
+      label: t("plan.tabs.schedule"),
+      content: (
+        <p className="text-gray-500 py-8 text-center">Phase 2</p>
+      ),
+      disabled: ![
+        "confirmed",
+        "scheduled",
+        "executing",
+        "testing",
+        "completed",
+      ].includes(planStatus),
+    },
+    {
+      id: "tests",
+      label: t("plan.tabs.tests"),
+      content: (
+        <p className="text-gray-500 py-8 text-center">Phase 3</p>
+      ),
+      disabled: !["testing", "completed"].includes(planStatus),
+    },
+    {
+      id: "logs",
+      label: t("plan.tabs.logs"),
+      content: (
+        <p className="text-gray-500 py-8 text-center">Phase 2</p>
+      ),
+      disabled: !["executing", "testing", "completed"].includes(planStatus),
+    },
+  ];
+
+  return <Tabs tabs={tabs} defaultTab="schemes" />;
+}
