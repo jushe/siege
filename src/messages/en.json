@@ -1,0 +1,64 @@
+{
+  "common": {
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "save": "Save",
+    "confirm": "Confirm",
+    "revoke": "Revoke",
+    "back": "Back",
+    "loading": "Loading...",
+    "noData": "No data"
+  },
+  "nav": {
+    "projects": "Projects",
+    "settings": "Settings"
+  },
+  "project": {
+    "title": "Projects",
+    "create": "New Project",
+    "name": "Project Name",
+    "description": "Description",
+    "targetRepoPath": "Repository Path",
+    "deleteConfirm": "Are you sure you want to delete this project?"
+  },
+  "plan": {
+    "title": "Plans",
+    "create": "New Plan",
+    "name": "Plan Name",
+    "description": "Description",
+    "status": {
+      "draft": "Draft",
+      "reviewing": "Reviewing",
+      "confirmed": "Confirmed",
+      "scheduled": "Scheduled",
+      "executing": "Executing",
+      "testing": "Testing",
+      "completed": "Completed"
+    },
+    "tabs": {
+      "schemes": "Schemes",
+      "schedule": "Schedule",
+      "tests": "Tests",
+      "logs": "Execution Log"
+    },
+    "deleteConfirm": "Are you sure you want to delete this plan?"
+  },
+  "scheme": {
+    "title": "Schemes",
+    "create": "Add Scheme",
+    "generate": "Generate Scheme",
+    "schemeTitle": "Title",
+    "content": "Content",
+    "sourceType": {
+      "web_search": "Web Search",
+      "local_analysis": "Local Analysis",
+      "manual": "Manual"
+    },
+    "confirmSchemes": "Confirm Schemes",
+    "revokeConfirm": "Revoke Confirmation",
+    "confirmed": "Schemes confirmed. Revoke to edit.",
+    "deleteConfirm": "Are you sure you want to delete this scheme?"
+  }
+}

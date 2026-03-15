@@ -1,0 +1,64 @@
+{
+  "common": {
+    "create": "创建",
+    "edit": "编辑",
+    "delete": "删除",
+    "cancel": "取消",
+    "save": "保存",
+    "confirm": "确认",
+    "revoke": "撤回",
+    "back": "返回",
+    "loading": "加载中...",
+    "noData": "暂无数据"
+  },
+  "nav": {
+    "projects": "项目",
+    "settings": "设置"
+  },
+  "project": {
+    "title": "项目",
+    "create": "新建项目",
+    "name": "项目名称",
+    "description": "描述",
+    "targetRepoPath": "仓库路径",
+    "deleteConfirm": "确定要删除这个项目吗？"
+  },
+  "plan": {
+    "title": "计划",
+    "create": "新建计划",
+    "name": "计划名称",
+    "description": "描述",
+    "status": {
+      "draft": "草稿",
+      "reviewing": "审阅中",
+      "confirmed": "已确认",
+      "scheduled": "已排期",
+      "executing": "执行中",
+      "testing": "测试中",
+      "completed": "已完成"
+    },
+    "tabs": {
+      "schemes": "方案",
+      "schedule": "排期",
+      "tests": "测试",
+      "logs": "执行日志"
+    },
+    "deleteConfirm": "确定要删除这个计划吗？"
+  },
+  "scheme": {
+    "title": "方案",
+    "create": "添加方案",
+    "generate": "生成方案",
+    "schemeTitle": "标题",
+    "content": "内容",
+    "sourceType": {
+      "web_search": "网页搜索",
+      "local_analysis": "本地分析",
+      "manual": "手动添加"
+    },
+    "confirmSchemes": "确认方案",
+    "revokeConfirm": "撤回确认",
+    "confirmed": "方案已确认，撤回后可编辑。",
+    "deleteConfirm": "确定要删除这个方案吗？"
+  }
+}
