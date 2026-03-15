@@ -24,10 +24,16 @@ export async function PUT(
 ) {
   const { planId } = await params;
   const body = await req.json();
+  const { name, description, folderId } = body;
   const db = getDb();
 
   db.update(plans)
-    .set({ ...body, updatedAt: new Date().toISOString() })
+    .set({
+      ...(name !== undefined && { name }),
+      ...(description !== undefined && { description }),
+      ...(folderId !== undefined && { folderId }),
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(plans.id, planId))
     .run();
 

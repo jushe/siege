@@ -28,10 +28,15 @@ export async function PUT(
 ) {
   const { schemeId } = await params;
   const body = await req.json();
+  const { title, content } = body;
   const db = getDb();
 
   db.update(schemes)
-    .set({ ...body, updatedAt: new Date().toISOString() })
+    .set({
+      ...(title !== undefined && { title }),
+      ...(content !== undefined && { content }),
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(schemes.id, schemeId))
     .run();
 

@@ -4,9 +4,11 @@ import { getModelId } from "@/lib/ai/provider";
 import { getDb } from "@/lib/db";
 import { appSettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { parseJsonBody } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const [body, errRes] = await parseJsonBody(req);
+  if (errRes) return errRes;
   const { description } = body;
 
   if (!description || description.trim().length < 5) {
@@ -26,12 +28,20 @@ export async function POST(req: NextRequest) {
 
   const modelId = getModelId(provider);
 
-  const result = await generateText({
-    model: modelId,
-    system:
-      "Generate a concise plan title (under 50 characters) from the given description. Output ONLY the title, nothing else. No quotes, no punctuation at the end.",
-    prompt: description,
-  });
+  try {
+    const result = await generateText({
+      model: modelId,
+      system:
+        "Generate a concise plan title (under 50 characters) from the given description. Output ONLY the title, nothing else. No quotes, no punctuation at the end.",
+      prompt: description,
+    });
 
-  return NextResponse.json({ title: result.text.trim() });
+    return NextResponse.json({ title: result.text.trim() });
+  } catch (err) {
+    console.error("[suggest-title] generateText failed:", err);
+    return NextResponse.json(
+      { error: "Failed to generate title" },
+      { status: 500 }
+    );
+  }
 }

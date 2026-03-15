@@ -9,10 +9,19 @@ export async function PUT(
 ) {
   const { itemId } = await params;
   const body = await req.json();
+  const { title, description, startDate, endDate, order, engine, skills } = body;
   const db = getDb();
 
   db.update(scheduleItems)
-    .set(body)
+    .set({
+      ...(title !== undefined && { title }),
+      ...(description !== undefined && { description }),
+      ...(startDate !== undefined && { startDate }),
+      ...(endDate !== undefined && { endDate }),
+      ...(order !== undefined && { order }),
+      ...(engine !== undefined && { engine }),
+      ...(skills !== undefined && { skills }),
+    })
     .where(eq(scheduleItems.id, itemId))
     .run();
 

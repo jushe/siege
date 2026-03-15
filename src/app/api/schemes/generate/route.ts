@@ -4,9 +4,11 @@ import { plans, projects, schemes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { generateSchemeStream } from "@/lib/ai/scheme-generator";
 import type { Provider } from "@/lib/ai/provider";
+import { parseJsonBody } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const [body, errRes] = await parseJsonBody(req);
+  if (errRes) return errRes;
   const { planId, provider, model } = body as {
     planId: string;
     provider: Provider;
@@ -51,7 +53,7 @@ export async function POST(req: NextRequest) {
   const response = result.toTextStreamResponse();
 
   // Save the scheme after streaming completes (fire and forget)
-  result.text.then((fullText) => {
+  Promise.resolve(result.text).then((fullText) => {
     const id = crypto.randomUUID();
     db.insert(schemes)
       .values({
@@ -67,6 +69,15 @@ export async function POST(req: NextRequest) {
     if (plan.status === "draft") {
       db.update(plans)
         .set({ status: "reviewing", updatedAt: new Date().toISOString() })
+        .where(eq(plans.id, planId))
+        .run();
+    }
+  }).catch((err) => {
+    console.error(`[scheme-generate] Failed to save scheme for plan ${planId}:`, err);
+    // Mark plan as draft if generation failed and it was transitioning
+    if (plan.status === "draft") {
+      db.update(plans)
+        .set({ updatedAt: new Date().toISOString() })
         .where(eq(plans.id, planId))
         .run();
     }

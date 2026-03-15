@@ -18,7 +18,19 @@ export async function GET() {
       .limit(5)
       .all();
 
-    return { ...config, history };
+    // Mask secrets in config before returning
+    let maskedConfigStr = config.config;
+    try {
+      const parsed = JSON.parse(config.config);
+      if (parsed.api_key) {
+        parsed.api_key = "***";
+      }
+      maskedConfigStr = JSON.stringify(parsed);
+    } catch {
+      // If config is not valid JSON, return as-is
+    }
+
+    return { ...config, config: maskedConfigStr, history };
   });
 
   return NextResponse.json(result);

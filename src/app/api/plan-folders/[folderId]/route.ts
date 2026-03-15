@@ -9,10 +9,14 @@ export async function PUT(
 ) {
   const { folderId } = await params;
   const body = await req.json();
+  const { name, parentId } = body;
   const db = getDb();
 
   db.update(planFolders)
-    .set(body)
+    .set({
+      ...(name !== undefined && { name }),
+      ...(parentId !== undefined && { parentId }),
+    })
     .where(eq(planFolders.id, folderId))
     .run();
 

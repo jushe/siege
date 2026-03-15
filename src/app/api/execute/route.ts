@@ -9,9 +9,11 @@ import {
 import { eq } from "drizzle-orm";
 import { executeTask, type ExecutionProgress } from "@/lib/cli/runner";
 import { scanAllSkills, getSkillContent } from "@/lib/skills/registry";
+import { parseJsonBody } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const [body, errRes] = await parseJsonBody(req);
+  if (errRes) return errRes;
   const { itemId } = body as { itemId: string };
 
   if (!itemId) {

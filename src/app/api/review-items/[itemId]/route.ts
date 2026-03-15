@@ -9,10 +9,13 @@ export async function PUT(
 ) {
   const { itemId } = await params;
   const body = await req.json();
+  const { resolved } = body;
   const db = getDb();
 
   db.update(reviewItems)
-    .set(body)
+    .set({
+      ...(resolved !== undefined && { resolved }),
+    })
     .where(eq(reviewItems.id, itemId))
     .run();
 

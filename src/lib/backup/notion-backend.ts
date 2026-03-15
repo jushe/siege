@@ -44,7 +44,7 @@ export const notionBackend: BackupBackend = {
         }
 
         // Create a page in the Notion database
-        await fetch("https://api.notion.com/v1/pages", {
+        const res = await fetch("https://api.notion.com/v1/pages", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${api_key}`,
@@ -80,6 +80,12 @@ export const notionBackend: BackupBackend = {
             ],
           }),
         });
+
+        if (!res.ok) {
+          throw new Error(
+            `Notion API error: ${res.status} ${res.statusText}`
+          );
+        }
       }
     }
   },

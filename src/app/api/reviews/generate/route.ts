@@ -11,9 +11,11 @@ import {
 import { eq } from "drizzle-orm";
 import { generateReview } from "@/lib/ai/review-generator";
 import type { Provider } from "@/lib/ai/provider";
+import { parseJsonBody } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
+  const [body, errRes] = await parseJsonBody(req);
+  if (errRes) return errRes;
   const { planId, type, provider, model } = body as {
     planId: string;
     type: "scheme" | "implementation";

@@ -13,11 +13,21 @@ export async function GET() {
   return NextResponse.json(result);
 }
 
+const ALLOWED_SETTINGS = new Set([
+  "default_provider",
+  "default_model_anthropic",
+  "default_model_openai",
+  "archive_after_days",
+  "cleanup_after_days",
+]);
+
 export async function PUT(req: NextRequest) {
   const body = await req.json();
   const db = getDb();
 
   for (const [key, value] of Object.entries(body)) {
+    if (!ALLOWED_SETTINGS.has(key)) continue;
+
     const existing = db
       .select()
       .from(appSettings)

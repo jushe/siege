@@ -28,10 +28,16 @@ export async function PUT(
 ) {
   const { projectId } = await params;
   const body = await req.json();
+  const { name, description, targetRepoPath } = body;
   const db = getDb();
 
   db.update(projects)
-    .set({ ...body, updatedAt: new Date().toISOString() })
+    .set({
+      ...(name !== undefined && { name }),
+      ...(description !== undefined && { description }),
+      ...(targetRepoPath !== undefined && { targetRepoPath }),
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(projects.id, projectId))
     .run();
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { plans, schemes } from "@/lib/db/schema";
+import { plans, projects, schemes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import fs from "fs";
 import path from "path";
@@ -64,17 +64,30 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Validate file exists and is markdown
-  if (!filePath.endsWith(".md")) {
+  // Resolve and validate the file path
+  const resolvedPath = path.resolve(filePath);
+
+  if (!resolvedPath.endsWith(".md")) {
     return NextResponse.json(
       { error: "Only .md files are supported" },
       { status: 400 }
     );
   }
 
+  // Log project context for auditing
+  const db0 = getDb();
+  const project = db0
+    .select()
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .get();
+  console.log(
+    `[import] Importing file "${resolvedPath}" for project "${project?.name}" (targetRepoPath: ${project?.targetRepoPath})`
+  );
+
   let content: string;
   try {
-    content = fs.readFileSync(filePath, "utf-8");
+    content = fs.readFileSync(resolvedPath, "utf-8");
   } catch {
     return NextResponse.json(
       { error: "File not found or unreadable" },
@@ -82,7 +95,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const parsed = parseMarkdown(content, path.basename(filePath));
+  const parsed = parseMarkdown(content, path.basename(resolvedPath));
 
   const db = getDb();
 
