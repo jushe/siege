@@ -10,7 +10,7 @@ import { MarkdownEditor } from "@/components/markdown/markdown-editor";
 interface CreatePlanDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { name: string; description: string }) => void;
+  onSubmit: (data: { name: string; description: string; tag: string }) => void;
 }
 
 export function CreatePlanDialog({
@@ -21,6 +21,7 @@ export function CreatePlanDialog({
   const t = useTranslations();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [tag, setTag] = useState("feature");
   const [suggesting, setSuggesting] = useState(false);
   const [userEditedName, setUserEditedName] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,16 +71,20 @@ export function CreatePlanDialog({
 
   const handleSubmit = () => {
     if (!name) return;
-    onSubmit({ name, description });
+    onSubmit({ name, description, tag });
     setName("");
     setDescription("");
+    setTag("feature");
     setUserEditedName(false);
     onClose();
   };
 
+  const TAGS = ["feature", "bug", "enhance", "refactor", "docs", "test", "chore", "perf"] as const;
+
   const handleClose = () => {
     setName("");
     setDescription("");
+    setTag("feature");
     setUserEditedName(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     onClose();
@@ -119,6 +124,27 @@ export function CreatePlanDialog({
               AI generated — edit to customize
             </p>
           )}
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {t("plan.tag")}
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {TAGS.map((t_) => (
+              <button
+                key={t_}
+                type="button"
+                onClick={() => setTag(t_)}
+                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                  tag === t_
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
+                }`}
+              >
+                {t(`plan.tags.${t_}`)}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={handleClose}>

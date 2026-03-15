@@ -24,7 +24,7 @@ export async function PUT(
 ) {
   const { planId } = await params;
   const body = await req.json();
-  const { name, description, folderId } = body;
+  const { name, description, folderId, tag } = body;
   const db = getDb();
 
   db.update(plans)
@@ -32,6 +32,7 @@ export async function PUT(
       ...(name !== undefined && { name }),
       ...(description !== undefined && { description }),
       ...(folderId !== undefined && { folderId }),
+      ...(tag !== undefined && { tag }),
       updatedAt: new Date().toISOString(),
     })
     .where(eq(plans.id, planId))

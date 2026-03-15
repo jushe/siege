@@ -11,6 +11,7 @@ interface PlanCardProps {
     name: string;
     description: string | null;
     status: string;
+    tag: string | null;
     updatedAt: string;
   };
   locale: string;
@@ -31,6 +32,12 @@ export function PlanCard({ plan, locale, onDelete }: PlanCardProps) {
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-2">
           <h3 className="font-semibold">{plan.name}</h3>
+          {plan.tag && (
+            <StatusBadge
+              status={plan.tag}
+              label={t(`plan.tags.${plan.tag}`)}
+            />
+          )}
           <StatusBadge
             status={plan.status}
             label={t(`plan.status.${plan.status}`)}

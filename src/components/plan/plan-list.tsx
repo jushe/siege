@@ -14,6 +14,7 @@ interface Plan {
   name: string;
   description: string | null;
   status: string;
+  tag: string | null;
   folderId: string | null;
   updatedAt: string;
 }
@@ -96,6 +97,7 @@ export function PlanList({ projectId, locale }: PlanListProps) {
   const handleCreatePlan = async (data: {
     name: string;
     description: string;
+    tag: string;
   }) => {
     await fetch("/api/plans", {
       method: "POST",

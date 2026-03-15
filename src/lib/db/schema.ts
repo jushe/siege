@@ -47,6 +47,7 @@ export const plans = sqliteTable("plans", {
   })
     .notNull()
     .default("draft"),
+  tag: text("tag").default("feature"),
   folderId: text("folder_id").references(() => planFolders.id, {
     onDelete: "set null",
   }),

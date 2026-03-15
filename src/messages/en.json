@@ -28,6 +28,17 @@
     "create": "New Plan",
     "name": "Plan Name",
     "description": "Description",
+    "tag": "Tag",
+    "tags": {
+      "feature": "Feature",
+      "bug": "Bug",
+      "enhance": "Enhancement",
+      "refactor": "Refactor",
+      "docs": "Documentation",
+      "test": "Test",
+      "chore": "Chore",
+      "perf": "Performance"
+    },
     "status": {
       "draft": "Draft",
       "reviewing": "Reviewing",
