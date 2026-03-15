@@ -97,22 +97,22 @@ export function ReviewPanel({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h4 className="font-semibold">
-          {type === "scheme" ? "Scheme Review" : "Code Review"}
+          {type === "scheme" ? t("review.schemeReview") : t("review.codeReview")}
         </h4>
         {canReview && (
           <Button onClick={handleGenerate} disabled={generating} size="sm">
             {generating
               ? t("common.loading")
               : latestReview
-                ? "Re-review"
-                : "Run Review"}
+                ? t("review.reReview")
+                : t("review.runReview")}
           </Button>
         )}
       </div>
 
       {!latestReview ? (
         <p className="text-gray-500 text-sm text-center py-4">
-          No review yet
+          {t("review.noReview")}
         </p>
       ) : (
         <div className="space-y-3">
@@ -138,7 +138,7 @@ export function ReviewPanel({
           {latestReview.items.length > 0 && (
             <div className="space-y-2">
               <h5 className="text-sm font-medium">
-                Findings ({latestReview.items.length})
+                {t("review.findings")} ({latestReview.items.length})
               </h5>
               {latestReview.items.map((item) => (
                 <div
@@ -169,7 +169,7 @@ export function ReviewPanel({
                           : "bg-white/50 text-gray-700 hover:bg-white"
                       }`}
                     >
-                      {item.resolved ? "Resolved" : "Resolve"}
+                      {item.resolved ? t("review.resolved") : t("review.resolve")}
                     </button>
                   </div>
                   {item.content && (

@@ -89,6 +89,16 @@
   "skip": "Skip",
   "loadedFrom": "Loaded from {source}",
   "checkingProject": "Checking project...",
+  "review": {
+    "schemeReview": "Scheme Review",
+    "codeReview": "Code Review",
+    "runReview": "Run Review",
+    "reReview": "Re-review",
+    "noReview": "No review yet",
+    "findings": "Findings",
+    "resolve": "Resolve",
+    "resolved": "Resolved"
+  },
   "folder": {
     "create": "New Folder",
     "name": "Folder Name",

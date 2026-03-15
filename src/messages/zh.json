@@ -89,6 +89,16 @@
   "skip": "跳过",
   "loadedFrom": "已从 {source} 读取",
   "checkingProject": "检测项目...",
+  "review": {
+    "schemeReview": "方案审查",
+    "codeReview": "代码审查",
+    "runReview": "开始审查",
+    "reReview": "重新审查",
+    "noReview": "暂无审查记录",
+    "findings": "发现",
+    "resolve": "已解决",
+    "resolved": "已解决"
+  },
   "folder": {
     "create": "新建文件夹",
     "name": "文件夹名称",
