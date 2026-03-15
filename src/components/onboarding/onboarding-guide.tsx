@@ -461,6 +461,12 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
   );
 }
 
+const PROVIDER_LOGIN_URLS: Record<string, string> = {
+  "Anthropic (Claude)": "https://console.anthropic.com/settings/keys",
+  "OpenAI (GPT)": "https://platform.openai.com/api-keys",
+  "GLM (智谱)": "https://open.bigmodel.cn/usercenter/apikeys",
+};
+
 /* Sub-component for per-provider config */
 function ProviderConfigCard({
   name,
@@ -487,9 +493,11 @@ function ProviderConfigCard({
   keyPlaceholder: string;
   urlPlaceholder: string;
 }) {
-  const [mode, setMode] = useState<"apikey" | "proxy">(
-    status?.mode === "proxy" ? "proxy" : "apikey"
+  const [mode, setMode] = useState<"login" | "apikey" | "proxy">(
+    status?.mode === "proxy" ? "proxy" : "login"
   );
+  const [loginOpened, setLoginOpened] = useState(false);
+  const loginUrl = PROVIDER_LOGIN_URLS[name] || "";
 
   if (status?.configured) {
     return (
@@ -522,6 +530,14 @@ function ProviderConfigCard({
         <span className="font-medium text-sm">{name}</span>
         <div className="flex gap-1 bg-gray-100 rounded-md p-0.5">
           <button
+            onClick={() => setMode("login")}
+            className={`px-2 py-1 text-xs rounded ${
+              mode === "login" ? "bg-white shadow-sm font-medium" : "text-gray-500"
+            }`}
+          >
+            {isZh ? "登录获取" : "Login"}
+          </button>
+          <button
             onClick={() => setMode("apikey")}
             className={`px-2 py-1 text-xs rounded ${
               mode === "apikey" ? "bg-white shadow-sm font-medium" : "text-gray-500"
@@ -540,33 +556,64 @@ function ProviderConfigCard({
         </div>
       </div>
 
-      <Input
-        value={apiKey}
-        onChange={(e) => onApiKeyChange(e.target.value)}
-        placeholder={keyPlaceholder}
-        type="password"
-        label="API Key"
-      />
-
-      {mode === "proxy" && (
-        <Input
-          value={baseURL}
-          onChange={(e) => onBaseURLChange(e.target.value)}
-          placeholder={urlPlaceholder}
-          label="Base URL"
-        />
+      {mode === "login" && !loginOpened && (
+        <div className="text-center space-y-3 py-2">
+          <p className="text-xs text-gray-500">
+            {isZh
+              ? "点击下方按钮跳转到平台获取 API Key，复制后粘贴到输入框。"
+              : "Click below to open the platform, copy your API Key, then paste it here."}
+          </p>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              window.open(loginUrl, "_blank");
+              setLoginOpened(true);
+            }}
+          >
+            {isZh ? `前往 ${name} 获取 Key` : `Go to ${name} for Key`}
+          </Button>
+        </div>
       )}
 
-      <Button
-        size="sm"
-        onClick={onSave}
-        disabled={saving || (!apiKey && !baseURL)}
-        className="w-full"
-      >
-        {saving
-          ? isZh ? "保存中..." : "Saving..."
-          : isZh ? "保存" : "Save"}
-      </Button>
+      {(mode !== "login" || loginOpened) && (
+        <>
+          {mode === "login" && loginOpened && (
+            <p className="text-xs text-blue-600 text-center">
+              {isZh
+                ? "已在新标签页打开平台，复制 API Key 后粘贴到下方："
+                : "Platform opened in new tab. Paste your API Key below:"}
+            </p>
+          )}
+
+          <Input
+            value={apiKey}
+            onChange={(e) => onApiKeyChange(e.target.value)}
+            placeholder={keyPlaceholder}
+            type="password"
+            label="API Key"
+          />
+
+          {mode === "proxy" && (
+            <Input
+              value={baseURL}
+              onChange={(e) => onBaseURLChange(e.target.value)}
+              placeholder={urlPlaceholder}
+              label="Base URL"
+            />
+          )}
+
+          <Button
+            size="sm"
+            onClick={onSave}
+            disabled={saving || (!apiKey && !baseURL)}
+            className="w-full"
+          >
+            {saving
+              ? isZh ? "保存中..." : "Saving..."
+              : isZh ? "保存" : "Save"}
+          </Button>
+        </>
+      )}
     </div>
   );
 }
