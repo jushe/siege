@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Tabs } from "@/components/ui/tabs";
 import { SchemeList } from "@/components/scheme/scheme-list";
+import { ScheduleView } from "@/components/schedule/schedule-view";
 
 interface PlanTabsProps {
   planId: string;
@@ -33,7 +34,11 @@ export function PlanTabs({
       id: "schedule",
       label: t("plan.tabs.schedule"),
       content: (
-        <p className="text-gray-500 py-8 text-center">Phase 2</p>
+        <ScheduleView
+          planId={planId}
+          planStatus={planStatus}
+          onPlanStatusChange={onPlanStatusChange}
+        />
       ),
       disabled: ![
         "confirmed",
