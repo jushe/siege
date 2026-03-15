@@ -8,6 +8,7 @@ import { TimeAgo } from "@/components/ui/time-ago";
 import { Button } from "@/components/ui/button";
 import { SchemeEditor } from "./scheme-editor";
 import { SchemeVersions } from "./scheme-versions";
+import { useGlobalLoading } from "@/components/ui/global-loading";
 
 interface Scheme {
   id: string;
@@ -34,6 +35,7 @@ export function SchemeCard({
 }: SchemeCardProps) {
   const t = useTranslations();
   const isZh = t("common.back") === "返回";
+  const { startLoading, stopLoading } = useGlobalLoading();
   const [editing, setEditing] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -58,6 +60,7 @@ export function SchemeCard({
 
   const handleChat = async () => {
     if (!chatInput.trim() || chatting) return;
+    startLoading(isZh ? "AI 修改方案中..." : "AI modifying scheme...");
 
     const message = chatInput.trim();
     setChatHistory((prev) => [...prev, { role: "user", text: message }]);
@@ -84,17 +87,20 @@ export function SchemeCard({
           title: updated.title,
           content: updated.content,
         });
+        stopLoading(isZh ? "方案修改完成" : "Scheme modified");
       } else {
         setChatHistory((prev) => [
           ...prev,
           { role: "ai", text: isZh ? "修改超时" : "Timed out" },
         ]);
+        stopLoading(isZh ? "修改超时" : "Timed out");
       }
     } catch {
       setChatHistory((prev) => [
         ...prev,
         { role: "ai", text: "Error" },
       ]);
+      stopLoading(isZh ? "修改失败" : "Failed");
     } finally {
       setChatting(false);
     }

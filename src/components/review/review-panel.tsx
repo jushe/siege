@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
+import { useGlobalLoading } from "@/components/ui/global-loading";
 
 interface ReviewItem {
   id: string;
@@ -47,6 +48,7 @@ export function ReviewPanel({
   onPlanStatusChange,
 }: ReviewPanelProps) {
   const t = useTranslations();
+  const { startLoading, stopLoading } = useGlobalLoading();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [generating, setGenerating] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -75,13 +77,17 @@ export function ReviewPanel({
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
         setGenerating(false);
+        stopLoading(isZh ? "审查完成" : "Review completed");
         onPlanStatusChange();
       }
     }, 3000);
   };
 
+  const isZh = t("common.back") === "返回";
+
   const handleGenerate = async () => {
     setGenerating(true);
+    startLoading(isZh ? "AI 正在审查..." : "AI reviewing...");
     try {
       await fetch("/api/reviews/generate", {
         method: "POST",
@@ -109,6 +115,7 @@ export function ReviewPanel({
   const handleFix = async (item: ReviewItem) => {
     if (!item.targetId || fixingItem) return;
     setFixingItem(item.id);
+    startLoading(isZh ? "AI 正在修复..." : "AI fixing...");
     try {
       // Get current scheme updatedAt for polling
       const schemeRes = await fetch(`/api/schemes/${item.targetId}`);
@@ -145,6 +152,9 @@ export function ReviewPanel({
       });
       await fetchReviews();
       onPlanStatusChange();
+      stopLoading(isZh ? "修复完成" : "Fixed");
+    } catch {
+      stopLoading(isZh ? "修复失败" : "Fix failed");
     } finally {
       setFixingItem(null);
     }
@@ -165,8 +175,6 @@ export function ReviewPanel({
       startPolling();
     }
   }, [isInProgress]);
-
-  const isZh = t("common.back") === "返回";
 
   return (
     <div className="space-y-4">

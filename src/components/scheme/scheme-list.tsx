@@ -8,6 +8,7 @@ import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { CreateSchemeDialog } from "./create-scheme-dialog";
 import { GenerateSchemeDialog } from "./generate-scheme-dialog";
 import { ReviewPanel } from "@/components/review/review-panel";
+import { useGlobalLoading } from "@/components/ui/global-loading";
 
 interface Scheme {
   id: string;
@@ -31,6 +32,7 @@ export function SchemeList({
   onPlanStatusChange,
 }: SchemeListProps) {
   const t = useTranslations();
+  const { startLoading, stopLoading } = useGlobalLoading();
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
@@ -100,10 +102,13 @@ export function SchemeList({
     onPlanStatusChange();
   };
 
+  const isZh = t("common.back") === "返回";
+
   const handleGenerate = async (provider: string, skills: string[]) => {
     setGenerating(true);
     setGenerateDialogOpen(false);
     setStreamingContent("");
+    startLoading(isZh ? "AI 正在生成方案..." : "AI generating scheme...");
     try {
       const res = await fetch("/api/schemes/generate", {
         method: "POST",
@@ -115,7 +120,6 @@ export function SchemeList({
         throw new Error("Generate failed");
       }
 
-      // Consume the streaming response and show progress
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let content = "";
@@ -129,8 +133,9 @@ export function SchemeList({
 
       await fetchSchemes();
       onPlanStatusChange();
+      stopLoading(isZh ? "方案生成完成" : "Scheme generated");
     } catch {
-      // ignore
+      stopLoading(isZh ? "生成失败" : "Generation failed");
     } finally {
       setGenerating(false);
       setStreamingContent("");

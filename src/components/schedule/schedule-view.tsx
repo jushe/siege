@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { GanttChart } from "@/components/gantt/gantt-chart";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
+import { useGlobalLoading } from "@/components/ui/global-loading";
 
 interface ScheduleItem {
   id: string;
@@ -54,12 +55,17 @@ export function ScheduleView({
     setSchedule(data);
   };
 
+  const { startLoading, stopLoading } = useGlobalLoading();
+
   useEffect(() => {
     fetchSchedule();
   }, [planId]);
 
+  const isZh = t("common.back") === "返回";
+
   const handleGenerate = async () => {
     setGenerating(true);
+    startLoading(isZh ? "AI 正在生成排期..." : "AI generating schedule...");
     try {
       await fetch("/api/schedules/generate", {
         method: "POST",
@@ -70,7 +76,6 @@ export function ScheduleView({
         }),
       });
 
-      // Poll until schedule appears
       for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 3000));
         const res = await fetch(`/api/schedules?planId=${planId}`);
@@ -78,9 +83,12 @@ export function ScheduleView({
         if (data && data.items && data.items.length > 0) {
           setSchedule(data);
           onPlanStatusChange();
+          stopLoading(isZh ? "排期生成完成" : "Schedule generated");
           break;
         }
       }
+    } catch {
+      stopLoading(isZh ? "排期生成失败" : "Schedule generation failed");
     } finally {
       setGenerating(false);
     }
