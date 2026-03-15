@@ -14,6 +14,18 @@ export const projects = sqliteTable("projects", {
     .notNull(),
 });
 
+export const planFolders = sqliteTable("plan_folders", {
+  id: text("id").primaryKey(),
+  projectId: text("project_id")
+    .notNull()
+    .references(() => projects.id, { onDelete: "cascade" }),
+  parentId: text("parent_id"),
+  name: text("name").notNull(),
+  createdAt: text("created_at")
+    .default(sql`(datetime('now'))`)
+    .notNull(),
+});
+
 export const plans = sqliteTable("plans", {
   id: text("id").primaryKey(),
   projectId: text("project_id")
@@ -34,6 +46,9 @@ export const plans = sqliteTable("plans", {
   })
     .notNull()
     .default("draft"),
+  folderId: text("folder_id").references(() => planFolders.id, {
+    onDelete: "set null",
+  }),
   archivedAt: text("archived_at"),
   createdAt: text("created_at")
     .default(sql`(datetime('now'))`)

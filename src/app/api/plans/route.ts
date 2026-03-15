@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { projectId, name, description } = body;
+  const { projectId, name, description, folderId } = body;
 
   if (!projectId || !name) {
     return NextResponse.json(
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   const id = crypto.randomUUID();
   db.insert(plans)
-    .values({ id, projectId, name, description, status: "draft" })
+    .values({ id, projectId, name, description, status: "draft", folderId: folderId || null })
     .run();
 
   const plan = db.select().from(plans).where(eq(plans.id, id)).get();
