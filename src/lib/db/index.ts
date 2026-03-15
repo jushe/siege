@@ -1,5 +1,6 @@
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
+import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "./schema";
 import path from "path";
 import fs from "fs";
@@ -16,7 +17,16 @@ function createDb() {
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
 
-  return drizzle(sqlite, { schema });
+  const db = drizzle(sqlite, { schema });
+
+  // Auto-migrate on startup
+  try {
+    migrate(db, { migrationsFolder: path.join(process.cwd(), "src/lib/db/migrations") });
+  } catch (err) {
+    console.error("[db] Migration failed:", err);
+  }
+
+  return db;
 }
 
 let dbInstance: ReturnType<typeof createDb> | null = null;
