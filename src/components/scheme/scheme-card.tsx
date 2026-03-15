@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { Button } from "@/components/ui/button";
 import { SchemeEditor } from "./scheme-editor";
+import { SchemeVersions } from "./scheme-versions";
 
 interface Scheme {
   id: string;
@@ -33,6 +34,7 @@ export function SchemeCard({
 }: SchemeCardProps) {
   const t = useTranslations();
   const [editing, setEditing] = useState(false);
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [chatting, setChatting] = useState(false);
   const [chatHistory, setChatHistory] = useState<
@@ -107,28 +109,37 @@ export function SchemeCard({
           />
           <TimeAgo date={scheme.updatedAt || scheme.createdAt} />
         </div>
-        {!readonly && (
-          <div className="flex gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditing(true)}
-            >
-              {t("common.edit")}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                if (window.confirm(t("scheme.deleteConfirm"))) {
-                  onDelete(scheme.id);
-                }
-              }}
-            >
-              {t("common.delete")}
-            </Button>
-          </div>
-        )}
+        <div className="flex gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setVersionsOpen(true)}
+          >
+            {isZh ? "版本" : "Versions"}
+          </Button>
+          {!readonly && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setEditing(true)}
+              >
+                {t("common.edit")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (window.confirm(t("scheme.deleteConfirm"))) {
+                    onDelete(scheme.id);
+                  }
+                }}
+              >
+                {t("common.delete")}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       <MarkdownRenderer content={scheme.content || ""} />
@@ -188,6 +199,16 @@ export function SchemeCard({
           </Button>
         </div>
       )}
+
+      <SchemeVersions
+        schemeId={scheme.id}
+        currentContent={scheme.content || ""}
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        onRestore={(content) => {
+          onUpdate(scheme.id, { title: scheme.title, content });
+        }}
+      />
     </div>
   );
 }

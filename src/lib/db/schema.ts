@@ -83,6 +83,19 @@ export const schemes = sqliteTable("schemes", {
     .notNull(),
 });
 
+export const schemeVersions = sqliteTable("scheme_versions", {
+  id: text("id").primaryKey(),
+  schemeId: text("scheme_id")
+    .notNull()
+    .references(() => schemes.id, { onDelete: "cascade" }),
+  version: integer("version").notNull(),
+  title: text("title").notNull(),
+  content: text("content").default(""),
+  createdAt: text("created_at")
+    .default(sql`(datetime('now'))`)
+    .notNull(),
+});
+
 export const schedules = sqliteTable("schedules", {
   id: text("id").primaryKey(),
   planId: text("plan_id")

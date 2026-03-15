@@ -4,6 +4,7 @@ import { schemes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { generateTextAuto } from "@/lib/ai/generate";
 import { parseJsonBody } from "@/lib/utils";
+import { saveSchemeVersion } from "@/lib/scheme-version";
 
 export async function POST(req: NextRequest) {
   const [body, errRes] = await parseJsonBody(req);
@@ -46,6 +47,9 @@ ${scheme.content}
 
 ${message}`,
     });
+
+    // Save current version before update
+    saveSchemeVersion(schemeId);
 
     // Update scheme
     db.update(schemes)

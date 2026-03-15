@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { schemes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { saveSchemeVersion } from "@/lib/scheme-version";
 
 export async function GET(
   _req: NextRequest,
@@ -30,6 +31,11 @@ export async function PUT(
   const body = await req.json();
   const { title, content } = body;
   const db = getDb();
+
+  // Save current version before update
+  if (title !== undefined || content !== undefined) {
+    saveSchemeVersion(schemeId);
+  }
 
   db.update(schemes)
     .set({
