@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
     .where(eq(schemes.planId, planId))
     .all();
 
-  const items = await generateSchedule({
+  // Run async — return immediately
+  generateSchedule({
     planName: plan.name,
     schemes: schemeList.map((s) => ({
       id: s.id,
@@ -47,80 +48,69 @@ export async function POST(req: NextRequest) {
     })),
     provider,
     model,
-  });
+  })
+    .then((items) => {
+      const db = getDb();
 
-  // Delete existing schedule if any
-  const existing = db
-    .select()
-    .from(schedules)
-    .where(eq(schedules.planId, planId))
-    .get();
-  if (existing) {
-    db.delete(schedules).where(eq(schedules.id, existing.id)).run();
-  }
+      // Delete existing schedule
+      const existing = db
+        .select()
+        .from(schedules)
+        .where(eq(schedules.planId, planId))
+        .get();
+      if (existing) {
+        db.delete(schedules).where(eq(schedules.id, existing.id)).run();
+      }
 
-  // Create schedule
-  const today = new Date();
-  let currentDate = new Date(today);
-  const scheduleId = crypto.randomUUID();
+      const today = new Date();
+      let currentDate = new Date(today);
+      const scheduleId = crypto.randomUUID();
+      const totalDays = items.reduce((sum, item) => sum + item.durationDays, 0);
+      const endDate = new Date(today);
+      endDate.setDate(endDate.getDate() + totalDays);
 
-  // Calculate end date
-  const totalDays = items.reduce((sum, item) => sum + item.durationDays, 0);
-  const endDate = new Date(today);
-  endDate.setDate(endDate.getDate() + totalDays);
+      db.insert(schedules)
+        .values({
+          id: scheduleId,
+          planId,
+          startDate: today.toISOString().split("T")[0],
+          endDate: endDate.toISOString().split("T")[0],
+        })
+        .run();
 
-  db.insert(schedules)
-    .values({
-      id: scheduleId,
-      planId,
-      startDate: today.toISOString().split("T")[0],
-      endDate: endDate.toISOString().split("T")[0],
+      for (const item of items) {
+        const itemStart = new Date(currentDate);
+        const itemEnd = new Date(currentDate);
+        itemEnd.setDate(itemEnd.getDate() + item.durationDays);
+
+        db.insert(scheduleItems)
+          .values({
+            id: crypto.randomUUID(),
+            scheduleId,
+            schemeId: item.schemeId,
+            title: item.title,
+            description: item.description,
+            startDate: itemStart.toISOString().split("T")[0],
+            endDate: itemEnd.toISOString().split("T")[0],
+            order: item.order,
+            status: "pending",
+            progress: 0,
+            engine: "claude-code",
+            skills: "[]",
+          })
+          .run();
+
+        currentDate = itemEnd;
+      }
+
+      db.update(plans)
+        .set({ status: "scheduled", updatedAt: new Date().toISOString() })
+        .where(eq(plans.id, planId))
+        .run();
     })
-    .run();
+    .catch((err) => {
+      console.error("[schedule-generate] failed:", err);
+    });
 
-  // Create schedule items with calculated dates
-  for (const item of items) {
-    const itemStart = new Date(currentDate);
-    const itemEnd = new Date(currentDate);
-    itemEnd.setDate(itemEnd.getDate() + item.durationDays);
-
-    db.insert(scheduleItems)
-      .values({
-        id: crypto.randomUUID(),
-        scheduleId,
-        schemeId: item.schemeId,
-        title: item.title,
-        description: item.description,
-        startDate: itemStart.toISOString().split("T")[0],
-        endDate: itemEnd.toISOString().split("T")[0],
-        order: item.order,
-        status: "pending",
-        progress: 0,
-        engine: "claude-code",
-        skills: "[]",
-      })
-      .run();
-
-    currentDate = itemEnd;
-  }
-
-  // Update plan status
-  db.update(plans)
-    .set({ status: "scheduled", updatedAt: new Date().toISOString() })
-    .where(eq(plans.id, planId))
-    .run();
-
-  // Return the created schedule with items
-  const schedule = db
-    .select()
-    .from(schedules)
-    .where(eq(schedules.id, scheduleId))
-    .get();
-  const createdItems = db
-    .select()
-    .from(scheduleItems)
-    .where(eq(scheduleItems.scheduleId, scheduleId))
-    .all();
-
-  return NextResponse.json({ ...schedule, items: createdItems }, { status: 201 });
+  return NextResponse.json({ status: "generating" }, { status: 202 });
 }

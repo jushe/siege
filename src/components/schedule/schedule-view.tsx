@@ -69,8 +69,18 @@ export function ScheduleView({
           provider: "anthropic",
         }),
       });
-      await fetchSchedule();
-      onPlanStatusChange();
+
+      // Poll until schedule appears
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const res = await fetch(`/api/schedules?planId=${planId}`);
+        const data = await res.json();
+        if (data && data.items && data.items.length > 0) {
+          setSchedule(data);
+          onPlanStatusChange();
+          break;
+        }
+      }
     } finally {
       setGenerating(false);
     }
@@ -161,7 +171,9 @@ export function ScheduleView({
         <div className="flex gap-2">
           {canGenerate && (
             <Button onClick={handleGenerate} disabled={generating}>
-              {generating ? t("common.loading") : t("plan.tabs.schedule")}
+              {generating
+                ? (t("common.back") === "返回" ? "生成中（约1-2分钟）..." : "Generating (~1-2min)...")
+                : (t("common.back") === "返回" ? "生成排期" : "Generate Schedule")}
             </Button>
           )}
         </div>
