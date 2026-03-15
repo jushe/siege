@@ -59,7 +59,7 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
   const [openaiKey, setOpenaiKey] = useState("");
   const [glmKey, setGlmKey] = useState("");
   const [glmUrl, setGlmUrl] = useState("");
-  const [claudeStatus, setClaudeStatus] = useState<{ installed: boolean; loggedIn: boolean } | null>(null);
+  const [claudeStatus, setClaudeStatus] = useState<{ installed: boolean; loggedIn: boolean; email?: string } | null>(null);
   const [openaiUrl, setOpenaiUrl] = useState("");
 
   const isZh = locale === "zh";
@@ -197,9 +197,11 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
               >
                 {isZh ? "开始设置" : "Get Started"}
               </Button>
-              <Button size="lg" variant="ghost" onClick={() => setStep("create")}>
-                {isZh ? "跳过，直接创建项目" : "Skip, create project"}
-              </Button>
+              {anyAiConfigured && (
+                <Button size="lg" variant="ghost" onClick={() => setStep("create")}>
+                  {isZh ? "直接创建项目" : "Create project now"}
+                </Button>
+              )}
             </div>
           </div>
         )}
@@ -338,7 +340,7 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
                         <span className="font-medium text-sm">Claude Code Login</span>
                         {claudeStatus.loggedIn ? (
                           <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                            ✓ {isZh ? "已登录" : "Logged in"}
+                            ✓ {claudeStatus.email || (isZh ? "已登录" : "Logged in")}
                           </span>
                         ) : (
                           <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
@@ -407,10 +409,17 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
 
             <div className="flex justify-between">
               <Button variant="ghost" onClick={() => setStep("github")}>{t("common.back")}</Button>
-              <Button size="lg" onClick={() => setStep("concept")}>
+              <Button size="lg" onClick={() => setStep("concept")} disabled={!anyAiConfigured}>
                 {isZh ? "继续" : "Continue"}
               </Button>
             </div>
+            {!anyAiConfigured && (
+              <p className="text-xs text-amber-600 text-center">
+                {isZh
+                  ? "请至少配置一个 AI 提供商后再继续"
+                  : "Please configure at least one AI provider to continue"}
+              </p>
+            )}
           </div>
         )}
 

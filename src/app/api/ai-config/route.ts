@@ -82,20 +82,30 @@ function getProviderStatus(provider: ProviderName): ProviderStatus {
   };
 }
 
-function checkClaudeLogin(): { loggedIn: boolean; installed: boolean } {
+function checkClaudeLogin(): { loggedIn: boolean; installed: boolean; email?: string } {
   try {
     execSync("which claude", { encoding: "utf-8", timeout: 3000 });
   } catch {
     return { loggedIn: false, installed: false };
   }
   try {
-    // claude auth status or similar — check if API key is available via claude CLI
-    const output = execSync("claude auth status 2>&1 || true", {
+    const output = execSync("claude auth status 2>&1", {
       encoding: "utf-8",
       timeout: 5000,
     });
-    const loggedIn = output.includes("logged in") || output.includes("authenticated");
-    return { loggedIn, installed: true };
+    // Output is JSON: {"loggedIn": true, "email": "...", ...}
+    try {
+      const parsed = JSON.parse(output.trim());
+      return {
+        loggedIn: !!parsed.loggedIn,
+        installed: true,
+        email: parsed.email,
+      };
+    } catch {
+      // Fallback: check for text patterns
+      const loggedIn = output.includes('"loggedIn":true') || output.includes('"loggedIn": true');
+      return { loggedIn, installed: true };
+    }
   } catch {
     return { loggedIn: false, installed: true };
   }
@@ -108,7 +118,7 @@ export async function GET() {
     anthropic: getProviderStatus("anthropic"),
     openai: getProviderStatus("openai"),
     glm: getProviderStatus("glm"),
-    claude: { installed: claude.installed, loggedIn: claude.loggedIn },
+    claude: { installed: claude.installed, loggedIn: claude.loggedIn, email: claude.email },
   };
   return NextResponse.json(status);
 }
