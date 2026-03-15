@@ -187,12 +187,17 @@ export function SchemeCard({
             </div>
           ))}
           {chatting && (
-            <div className="text-sm text-gray-400 flex items-center gap-1">
+            <div className="text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2 flex items-center gap-2">
               <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              {isZh ? "AI 修改中..." : "AI modifying..."}
+              <div>
+                <span>{isZh ? "AI 修改中，请稍候..." : "AI modifying, please wait..."}</span>
+                <span className="block text-xs text-blue-400">
+                  {isZh ? "通常需要 1-2 分钟" : "Usually takes 1-2 minutes"}
+                </span>
+              </div>
             </div>
           )}
         </div>

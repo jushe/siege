@@ -254,7 +254,7 @@ export function ReviewPanel({
                           className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 disabled:opacity-50"
                         >
                           {fixingItem === item.id
-                            ? isZh ? "修复中..." : "Fixing..."
+                            ? isZh ? "修复中（约1-2分钟）..." : "Fixing (~1-2min)..."
                             : isZh ? "AI 修复" : "AI Fix"}
                         </button>
                       )}
