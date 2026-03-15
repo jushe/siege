@@ -110,7 +110,13 @@ export function ReviewPanel({
     if (!item.targetId || fixingItem) return;
     setFixingItem(item.id);
     try {
-      const res = await fetch("/api/schemes/chat", {
+      // Get current scheme updatedAt for polling
+      const schemeRes = await fetch(`/api/schemes/${item.targetId}`);
+      const schemeData = schemeRes.ok ? await schemeRes.json() : null;
+      const originalUpdatedAt = schemeData?.updatedAt;
+
+      // Fire async modification
+      await fetch("/api/schemes/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -118,16 +124,27 @@ export function ReviewPanel({
           message: `Fix the following issue:\n\n**${item.title}**\n\n${item.content}`,
         }),
       });
-      if (res.ok) {
-        // Mark as resolved
-        await fetch(`/api/review-items/${item.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ resolved: true }),
-        });
-        await fetchReviews();
-        onPlanStatusChange();
+
+      // Poll for scheme update
+      if (originalUpdatedAt) {
+        for (let i = 0; i < 60; i++) {
+          await new Promise((r) => setTimeout(r, 3000));
+          const checkRes = await fetch(`/api/schemes/${item.targetId}`);
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if (checkData.updatedAt !== originalUpdatedAt) break;
+          }
+        }
       }
+
+      // Mark as resolved
+      await fetch(`/api/review-items/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved: true }),
+      });
+      await fetchReviews();
+      onPlanStatusChange();
     } finally {
       setFixingItem(null);
     }

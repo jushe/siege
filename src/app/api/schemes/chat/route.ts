@@ -33,45 +33,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Scheme not found" }, { status: 404 });
   }
 
-  try {
-    const newContent = await generateTextAuto({
-      system: `You are a senior software architect helping to revise a technical scheme.
+  // Start async — return immediately
+  generateTextAuto({
+    system: `You are a senior software architect helping to revise a technical scheme.
 You will receive the current scheme content and a modification request.
 Apply the requested changes and return the COMPLETE updated scheme in Markdown.
 Do NOT add explanations or comments about what you changed — just output the full updated scheme.`,
-      prompt: `## Current Scheme
-
-${scheme.content}
-
-## Modification Request
-
-${message}`,
+    prompt: `## Current Scheme\n\n${scheme.content}\n\n## Modification Request\n\n${message}`,
+  })
+    .then((newContent) => {
+      saveSchemeVersion(schemeId);
+      db.update(schemes)
+        .set({ content: newContent, updatedAt: new Date().toISOString() })
+        .where(eq(schemes.id, schemeId))
+        .run();
+    })
+    .catch((err) => {
+      console.error("[scheme-chat] failed:", err);
     });
 
-    // Save current version before update
-    saveSchemeVersion(schemeId);
-
-    // Update scheme
-    db.update(schemes)
-      .set({
-        content: newContent,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(schemes.id, schemeId))
-      .run();
-
-    const updated = db
-      .select()
-      .from(schemes)
-      .where(eq(schemes.id, schemeId))
-      .get();
-
-    return NextResponse.json(updated);
-  } catch (err) {
-    console.error("[scheme-chat] failed:", err);
-    return NextResponse.json(
-      { error: "Failed to modify scheme" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ status: "processing", schemeId }, { status: 202 });
 }

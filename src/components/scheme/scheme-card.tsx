@@ -33,6 +33,7 @@ export function SchemeCard({
   onDelete,
 }: SchemeCardProps) {
   const t = useTranslations();
+  const isZh = t("common.back") === "返回";
   const [editing, setEditing] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -40,6 +41,20 @@ export function SchemeCard({
   const [chatHistory, setChatHistory] = useState<
     Array<{ role: "user" | "ai"; text: string }>
   >([]);
+
+  const pollSchemeUpdate = async (originalUpdatedAt: string) => {
+    for (let i = 0; i < 60; i++) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const res = await fetch(`/api/schemes/${scheme.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.updatedAt !== originalUpdatedAt) {
+          return data;
+        }
+      }
+    }
+    return null;
+  };
 
   const handleChat = async () => {
     if (!chatInput.trim() || chatting) return;
@@ -49,18 +64,21 @@ export function SchemeCard({
     setChatInput("");
     setChatting(true);
 
+    const originalUpdatedAt = scheme.updatedAt;
+
     try {
-      const res = await fetch("/api/schemes/chat", {
+      await fetch("/api/schemes/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ schemeId: scheme.id, message }),
       });
 
-      if (res.ok) {
-        const updated = await res.json();
+      // Poll for update
+      const updated = await pollSchemeUpdate(originalUpdatedAt);
+      if (updated) {
         setChatHistory((prev) => [
           ...prev,
-          { role: "ai", text: t("common.save") + " ✓" },
+          { role: "ai", text: isZh ? "修改完成 ✓" : "Done ✓" },
         ]);
         onUpdate(scheme.id, {
           title: updated.title,
@@ -69,7 +87,7 @@ export function SchemeCard({
       } else {
         setChatHistory((prev) => [
           ...prev,
-          { role: "ai", text: "Failed to modify" },
+          { role: "ai", text: isZh ? "修改超时" : "Timed out" },
         ]);
       }
     } catch {
@@ -95,8 +113,6 @@ export function SchemeCard({
       />
     );
   }
-
-  const isZh = t("common.back") === "返回";
 
   return (
     <div className="rounded-lg border bg-white p-5">
