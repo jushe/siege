@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ProjectCard } from "./project-card";
 import { CreateProjectDialog } from "./create-project-dialog";
+import { OnboardingGuide } from "@/components/onboarding/onboarding-guide";
 
 interface Project {
   id: string;
@@ -22,11 +23,13 @@ export function ProjectList({ locale }: ProjectListProps) {
   const t = useTranslations();
   const [projects, setProjects] = useState<Project[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const fetchProjects = async () => {
     const res = await fetch("/api/projects");
     const data = await res.json();
     setProjects(data);
+    setLoaded(true);
   };
 
   useEffect(() => {
@@ -51,6 +54,22 @@ export function ProjectList({ locale }: ProjectListProps) {
     fetchProjects();
   };
 
+  if (!loaded) {
+    return <p className="text-center py-12 text-gray-400">{t("common.loading")}</p>;
+  }
+
+  // Show onboarding guide on first visit (no projects)
+  if (projects.length === 0) {
+    return (
+      <OnboardingGuide
+        locale={locale}
+        onComplete={async (data) => {
+          await handleCreate(data);
+        }}
+      />
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -60,22 +79,16 @@ export function ProjectList({ locale }: ProjectListProps) {
         </Button>
       </div>
 
-      {projects.length === 0 ? (
-        <p className="text-gray-500 text-center py-12">
-          {t("common.noData")}
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {projects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              locale={locale}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {projects.map((project) => (
+          <ProjectCard
+            key={project.id}
+            project={project}
+            locale={locale}
+            onDelete={handleDelete}
+          />
+        ))}
+      </div>
 
       <CreateProjectDialog
         open={dialogOpen}
