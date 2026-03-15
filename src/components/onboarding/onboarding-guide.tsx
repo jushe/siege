@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MarkdownEditor } from "@/components/markdown/markdown-editor";
+import { RepoPicker } from "@/components/repo-picker/repo-picker";
 
 interface OnboardingGuideProps {
   locale: string;
@@ -168,13 +169,35 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
                   height={120}
                 />
               </div>
-              <Input
-                label={t("project.targetRepoPath")}
-                value={targetRepoPath}
-                onChange={(e) => setTargetRepoPath(e.target.value)}
-                placeholder="/home/user/my-project"
-                required
-              />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {t("project.targetRepoPath")}
+                </label>
+                {targetRepoPath ? (
+                  <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-gray-50">
+                    <span className="text-sm font-mono flex-1 truncate">
+                      {targetRepoPath}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setTargetRepoPath("")}
+                    >
+                      {isZh ? "重选" : "Change"}
+                    </Button>
+                  </div>
+                ) : (
+                  <RepoPicker
+                    locale={locale}
+                    onSelect={(path) => {
+                      setTargetRepoPath(path);
+                      if (!name) {
+                        setName(path.split("/").pop() || "");
+                      }
+                    }}
+                  />
+                )}
+              </div>
             </div>
 
             <div className="flex justify-between">

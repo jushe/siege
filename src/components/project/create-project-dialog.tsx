@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useTranslations, useLocale } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MarkdownEditor } from "@/components/markdown/markdown-editor";
+import { RepoPicker } from "@/components/repo-picker/repo-picker";
 
 interface CreateProjectDialogProps {
   open: boolean;
@@ -23,6 +24,7 @@ export function CreateProjectDialog({
   onSubmit,
 }: CreateProjectDialogProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [targetRepoPath, setTargetRepoPath] = useState("");
@@ -55,13 +57,36 @@ export function CreateProjectDialog({
             height={150}
           />
         </div>
-        <Input
-          label={t("project.targetRepoPath")}
-          value={targetRepoPath}
-          onChange={(e) => setTargetRepoPath(e.target.value)}
-          placeholder="/home/user/my-project"
-          required
-        />
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            {t("project.targetRepoPath")}
+          </label>
+          {targetRepoPath ? (
+            <div className="flex items-center gap-2 rounded-md border px-3 py-2 bg-gray-50">
+              <span className="text-sm font-mono flex-1 truncate">
+                {targetRepoPath}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setTargetRepoPath("")}
+              >
+                {locale === "zh" ? "重选" : "Change"}
+              </Button>
+            </div>
+          ) : (
+            <RepoPicker
+              locale={locale}
+              onSelect={(path) => {
+                setTargetRepoPath(path);
+                // Auto-fill name from directory if empty
+                if (!name) {
+                  setName(path.split("/").pop() || "");
+                }
+              }}
+            />
+          )}
+        </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>
             {t("common.cancel")}
