@@ -260,9 +260,130 @@ Plan: draft → reviewing → confirmed → scheduled → executing → testing 
 - Users associate skills with schedule items
 - Skill content injected into CLI prompt during execution
 
+## Archive & Cleanup
+
+Completed plans are automatically archived and eventually cleaned up. Timelines are user-configurable in Settings.
+
+**Lifecycle:**
+```
+completed → archived (after N days) → deleted (after M days)
+```
+
+**Data Model Addition:**
+
+### Plan (additional fields)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| archived_at | datetime (nullable) | When the plan was archived |
+
+### AppSettings (key-value settings store)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string | Primary key |
+| key | string (unique) | Setting key |
+| value | string | Setting value (JSON serialized) |
+
+**Configurable settings:**
+- `archive_after_days`: Days after completion before auto-archive (default: 30)
+- `cleanup_after_days`: Days after archive before auto-delete (default: 90)
+
+**Behavior:**
+- Archived plans are hidden from the default plan list (toggle to show)
+- A scheduled job runs daily to archive/cleanup eligible plans
+- The job is a Next.js cron-like API route triggered by `setInterval` on server startup
+
+## Backup
+
+Automatic scheduled backups to configurable external backends. All exports are in Markdown format.
+
+**Supported backends:**
+
+| Backend | Mechanism | Config |
+|---------|-----------|--------|
+| Obsidian | Write `.md` files to a configured vault path | `vault_path` |
+| Notion | Create pages via Notion API | `api_key`, `database_id` |
+| Local Filesystem | Export `.md` files to a directory | `export_path` |
+
+**Data Model Addition:**
+
+### BackupConfig
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string (uuid) | Primary key |
+| backend | enum | obsidian, notion, local |
+| config | JSON | Backend-specific configuration |
+| schedule_cron | string | Cron expression (e.g., "0 2 * * *") |
+| enabled | boolean | Whether active |
+| created_at | datetime | Creation timestamp |
+
+### BackupHistory
+
+| Field | Type | Description |
+|-------|------|-------------|
+| id | string (uuid) | Primary key |
+| backup_config_id | string (fk) | Parent config |
+| started_at | datetime | Start timestamp |
+| completed_at | datetime (nullable) | Completion timestamp |
+| status | enum | running, completed, failed |
+| items_count | integer | Number of items backed up |
+| error_message | string (nullable) | Error details if failed |
+
+**Export format:**
+Each plan exports as a directory:
+```
+<project-name>/
+└── <plan-name>/
+    ├── plan.md          (plan description + status)
+    ├── schemes/
+    │   ├── 01-scheme-title.md
+    │   └── 02-scheme-title.md
+    ├── schedule.md      (schedule overview + items)
+    └── tests/
+        └── test-results.md
+```
+
+**Backend abstraction:**
+```typescript
+interface BackupBackend {
+  name: string;
+  validate(config: Record<string, string>): Promise<boolean>;
+  backup(data: ExportData, config: Record<string, string>): Promise<void>;
+}
+```
+
+New backends can be added by implementing this interface.
+
+## Import
+
+Support importing plans from local Markdown files.
+
+**Supported format:** Single `.md` file parsed into a plan with schemes.
+
+**Parsing rules:**
+- File name → plan name
+- Top-level content (before first `## `) → plan description
+- Each `## ` heading → a separate scheme (heading = title, content = scheme content)
+- All imported schemes have `source_type: "manual"`
+
+**API:**
+- `POST /api/import` — accepts a markdown file path, parses and creates plan + schemes
+- UI: "Import Plan" button on project detail page, file picker for `.md` files
+
 ## i18n
 
 - next-intl with `[locale]` route segment
 - Supported locales: `zh` (Chinese), `en` (English)
 - UI text in message files (`messages/zh.json`, `messages/en.json`)
 - User-generated content (schemes, plans) is not translated
+
+## Implementation Phases
+
+| Phase | Scope | Deliverable |
+|-------|-------|-------------|
+| **Phase 1: Foundation** | Scaffolding, DB, i18n, Markdown, Project/Plan/Scheme CRUD, confirmation flow | Runnable project management UI |
+| **Phase 2: AI + Execution** | AI service, scheme/schedule generation, Gantt chart, CLI execution, Skills, SSE | Full generate → execute pipeline |
+| **Phase 3: Testing** | TestSuite/TestCase/TestResult, test generation, test runner, settings page | Complete closed loop |
+| **Phase 4: Data Management** | Archive/cleanup, backup (Obsidian/Notion/Local), markdown import | Data lifecycle + portability |
