@@ -49,6 +49,7 @@ export function ReviewPanel({
   const t = useTranslations();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
 
   const fetchReviews = async () => {
     const res = await fetch(
@@ -64,16 +65,33 @@ export function ReviewPanel({
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setStreamingContent("");
     try {
-      await fetch("/api/reviews/generate", {
+      const res = await fetch("/api/reviews/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planId, type, provider: "anthropic" }),
       });
+
+      if (res.body) {
+        // Stream mode (CLI fallback)
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let content = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          content += decoder.decode(value, { stream: true });
+          setStreamingContent(content);
+        }
+      }
+
       await fetchReviews();
       onPlanStatusChange();
     } finally {
       setGenerating(false);
+      setStreamingContent("");
     }
   };
 
@@ -94,6 +112,8 @@ export function ReviewPanel({
   const latestReview = reviews[reviews.length - 1];
   const isStuck = latestReview?.status === "in_progress";
 
+  const isZh = t("common.back") === "返回";
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -111,11 +131,31 @@ export function ReviewPanel({
         )}
       </div>
 
-      {!latestReview ? (
+      {/* Streaming preview while generating */}
+      {generating && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            </svg>
+            <span className="text-sm font-medium text-blue-700">
+              {isZh ? "AI 正在审查..." : "AI reviewing..."}
+            </span>
+          </div>
+          {streamingContent && (
+            <div className="bg-white rounded p-3 max-h-60 overflow-y-auto">
+              <MarkdownRenderer content={streamingContent} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {!generating && !latestReview ? (
         <p className="text-gray-500 text-sm text-center py-4">
           {t("review.noReview")}
         </p>
-      ) : (
+      ) : !generating && latestReview ? (
         <div className="space-y-3">
           {/* Review status */}
           <div className="flex items-center gap-2">
@@ -183,7 +223,7 @@ export function ReviewPanel({
             </div>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
