@@ -98,37 +98,35 @@ export function ScheduleView({
 
   const handleExecuteItem = async (itemId: string) => {
     setExecuting(itemId);
+    startLoading(isZh ? "AI 正在执行任务..." : "AI executing task...");
 
-    const response = await fetch("/api/execute", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId }),
-    });
+    try {
+      const res = await fetch("/api/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId }),
+      });
 
-    if (!response.body) return;
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const text = decoder.decode(value);
-      const lines = text.split("\n");
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          try {
-            const progress = JSON.parse(line.slice(6));
-            if (progress.type === "done") {
-              setExecuting(null);
-              await fetchSchedule();
-            }
-          } catch {
-            // ignore parse errors
-          }
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let content = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          content += decoder.decode(value, { stream: true });
+          updateContent(content);
         }
       }
+
+      await new Promise((r) => setTimeout(r, 500));
+      await fetchSchedule();
+      onPlanStatusChange();
+      stopLoading(isZh ? "任务执行完成" : "Task completed");
+    } catch {
+      stopLoading(isZh ? "执行失败" : "Execution failed");
+    } finally {
+      setExecuting(null);
     }
   };
 
@@ -179,11 +177,13 @@ export function ScheduleView({
           {t("plan.tabs.schedule")}
         </h3>
         <div className="flex gap-2">
-          {canGenerate && (
+          {(canGenerate || planStatus === "scheduled") && (
             <Button onClick={handleGenerate} disabled={generating}>
               {generating
-                ? (t("common.back") === "返回" ? "生成中（约1-2分钟）..." : "Generating (~1-2min)...")
-                : (t("common.back") === "返回" ? "生成排期" : "Generate Schedule")}
+                ? (isZh ? "生成中..." : "Generating...")
+                : schedule
+                  ? (isZh ? "重新生成排期" : "Regenerate")
+                  : (isZh ? "生成排期" : "Generate Schedule")}
             </Button>
           )}
         </div>

@@ -7,7 +7,8 @@ import {
   projects,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { executeTask, type ExecutionProgress } from "@/lib/cli/runner";
+import { getConfiguredModel } from "@/lib/ai/config";
+import { streamText } from "ai";
 import { scanAllSkills, getSkillContent } from "@/lib/skills/registry";
 import { parseJsonBody } from "@/lib/utils";
 
@@ -17,64 +18,23 @@ export async function POST(req: NextRequest) {
   const { itemId } = body as { itemId: string };
 
   if (!itemId) {
-    return NextResponse.json(
-      { error: "itemId is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "itemId is required" }, { status: 400 });
   }
 
   const db = getDb();
-  const item = db
-    .select()
-    .from(scheduleItems)
-    .where(eq(scheduleItems.id, itemId))
-    .get();
+  const item = db.select().from(scheduleItems).where(eq(scheduleItems.id, itemId)).get();
+  if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
 
-  if (!item) {
-    return NextResponse.json(
-      { error: "Schedule item not found" },
-      { status: 404 }
-    );
-  }
+  const schedule = db.select().from(schedules).where(eq(schedules.id, item.scheduleId)).get();
+  if (!schedule) return NextResponse.json({ error: "Schedule not found" }, { status: 404 });
 
-  // Get project info for cwd
-  const schedule = db
-    .select()
-    .from(schedules)
-    .where(eq(schedules.id, item.scheduleId))
-    .get();
-  if (!schedule) {
-    return NextResponse.json(
-      { error: "Schedule not found" },
-      { status: 404 }
-    );
-  }
+  const plan = db.select().from(plans).where(eq(plans.id, schedule.planId)).get();
+  if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
 
-  const plan = db
-    .select()
-    .from(plans)
-    .where(eq(plans.id, schedule.planId))
-    .get();
-  if (!plan) {
-    return NextResponse.json(
-      { error: "Plan not found" },
-      { status: 404 }
-    );
-  }
+  const project = db.select().from(projects).where(eq(projects.id, plan.projectId)).get();
+  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  const project = db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, plan.projectId))
-    .get();
-  if (!project) {
-    return NextResponse.json(
-      { error: "Project not found" },
-      { status: 404 }
-    );
-  }
-
-  // Get skills content
+  // Get skills
   const skillNames: string[] = JSON.parse(item.skills || "[]");
   let skillsContent = "";
   if (skillNames.length > 0) {
@@ -82,13 +42,12 @@ export async function POST(req: NextRequest) {
     skillsContent = getSkillContent(allSkills, skillNames);
   }
 
-  // Update item status
+  // Update status
   db.update(scheduleItems)
     .set({ status: "in_progress", progress: 0 })
     .where(eq(scheduleItems.id, itemId))
     .run();
 
-  // Update plan status if needed
   if (plan.status === "scheduled") {
     db.update(plans)
       .set({ status: "executing", updatedAt: new Date().toISOString() })
@@ -96,55 +55,54 @@ export async function POST(req: NextRequest) {
       .run();
   }
 
-  const engine = (item.engine || "claude-code") as "claude-code" | "codex";
+  // Build prompt
+  const taskPrompt = `<IMPORTANT>
+You are being called as an API to implement a development task.
+Do NOT ask questions. Do NOT request permissions.
+Describe what changes you would make, with exact file paths and code.
+Output Markdown with code blocks.
+</IMPORTANT>
 
-  // Start execution with SSE
-  const emitter = executeTask(itemId, {
-    engine,
-    prompt: `${item.title}\n\n${item.description || ""}`,
-    cwd: project.targetRepoPath,
-    skillsContent,
-  });
+Project: ${project.name}
+Repository: ${project.targetRepoPath}
 
+Task: ${item.title}
+${item.description || ""}
+
+${skillsContent ? `\nSkills context:\n${skillsContent}` : ""}
+
+Implement this task. Show the exact code changes needed.`;
+
+  const model = getConfiguredModel();
+  const result = streamText({ model, prompt: taskPrompt });
+
+  const textStream = result.textStream;
   const encoder = new TextEncoder();
-  let executionLog = "";
+  let fullText = "";
 
-  const stream = new ReadableStream({
-    start(controller) {
-      const onProgress = (progress: ExecutionProgress) => {
-        executionLog += progress.data + "\n";
+  const responseStream = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of textStream) {
+        fullText += chunk;
+        controller.enqueue(encoder.encode(chunk));
+      }
 
-        const sseData = `data: ${JSON.stringify(progress)}\n\n`;
-        controller.enqueue(encoder.encode(sseData));
+      // Save execution log and update status
+      const db = getDb();
+      db.update(scheduleItems)
+        .set({
+          status: "completed",
+          progress: 100,
+          executionLog: fullText,
+        })
+        .where(eq(scheduleItems.id, itemId))
+        .run();
 
-        if (progress.type === "done") {
-          // Update DB with final log
-          const finalStatus = progress.data.includes("code 0")
-            ? "completed"
-            : "failed";
-          db.update(scheduleItems)
-            .set({
-              status: finalStatus,
-              progress: finalStatus === "completed" ? 100 : item.progress,
-              executionLog,
-            })
-            .where(eq(scheduleItems.id, itemId))
-            .run();
-
-          controller.close();
-          emitter.removeListener("progress", onProgress);
-        }
-      };
-
-      emitter.on("progress", onProgress);
+      controller.close();
     },
   });
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/event-stream",
-      "Cache-Control": "no-cache",
-      Connection: "keep-alive",
-    },
+  return new Response(responseStream, {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
   });
 }

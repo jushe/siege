@@ -63,8 +63,8 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   const plan = db.select().from(plans).where(eq(plans.id, planId)).get();
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
-  if (plan.status !== "confirmed") {
-    return NextResponse.json({ error: "Plan must be confirmed" }, { status: 400 });
+  if (plan.status !== "confirmed" && plan.status !== "scheduled") {
+    return NextResponse.json({ error: "Plan must be confirmed or scheduled" }, { status: 400 });
   }
 
   const schemeList = db.select().from(schemes).where(eq(schemes.planId, planId)).all();
