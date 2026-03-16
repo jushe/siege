@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { MarkdownEditor } from "@/components/markdown/markdown-editor";
+import { useGlobalLoading } from "@/components/ui/global-loading";
 
 interface CreatePlanDialogProps {
   open: boolean;
@@ -19,66 +20,47 @@ export function CreatePlanDialog({
   onSubmit,
 }: CreatePlanDialogProps) {
   const t = useTranslations();
+  const isZh = t("common.back") === "返回";
+  const { startLoading, updateContent, stopLoading } = useGlobalLoading();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [tag, setTag] = useState("feature");
-  const [suggesting, setSuggesting] = useState(false);
-  const [userEditedName, setUserEditedName] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const abortRef = useRef<AbortController | null>(null);
+  const handleSuggestTitle = async () => {
+    if (description.trim().length < 5) return;
 
-  const suggestTitle = useCallback(
-    async (desc: string) => {
-      if (userEditedName || desc.trim().length < 10) return;
+    startLoading(isZh ? "AI 正在生成标题..." : "AI generating title...");
+    try {
+      // Fire async request
+      const res = await fetch("/api/plans/suggest-title", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description }),
+      });
+      const { requestId } = await res.json();
 
-      // Cancel previous request
-      if (abortRef.current) abortRef.current.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      setSuggesting(true);
-      try {
-        const res = await fetch("/api/plans/suggest-title", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ description: desc }),
-          signal: controller.signal,
-        });
-        if (res.ok && !controller.signal.aborted) {
-          const data = await res.json();
-          if (!userEditedName) {
-            setName(data.title);
-          }
+      // Poll for result
+      for (let i = 0; i < 60; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        updateContent(isZh
+          ? `AI 正在生成标题，已等待 ${(i + 1) * 3} 秒...`
+          : `Generating title... ${(i + 1) * 3}s elapsed.`);
+        const pollRes = await fetch(`/api/plans/suggest-title?requestId=${requestId}`);
+        const pollData = await pollRes.json();
+        if (pollData.status === "done" && pollData.title) {
+          setName(pollData.title);
+          stopLoading(isZh ? "标题生成完成" : "Title generated");
+          return;
         }
-      } catch {
-        // ignore abort/errors
-      } finally {
-        if (!controller.signal.aborted) {
-          setSuggesting(false);
+        if (pollData.status === "error") {
+          stopLoading(isZh ? "标题生成失败" : "Title generation failed");
+          return;
         }
       }
-    },
-    [userEditedName]
-  );
-
-  const handleDescriptionChange = (value: string) => {
-    setDescription(value);
-
-    // Debounce title suggestion
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
+      stopLoading(isZh ? "标题生成超时" : "Title generation timed out");
+    } catch {
+      stopLoading(isZh ? "标题生成失败" : "Failed");
     }
-    debounceRef.current = setTimeout(() => {
-      suggestTitle(value);
-    }, 1500);
-  };
-
-  const handleNameChange = (value: string) => {
-    setName(value);
-    setUserEditedName(true);
-    setSuggesting(false);
-    if (abortRef.current) abortRef.current.abort();
   };
 
   const handleSubmit = () => {
@@ -87,7 +69,6 @@ export function CreatePlanDialog({
     setName("");
     setDescription("");
     setTag("feature");
-    setUserEditedName(false);
     onClose();
   };
 
@@ -97,10 +78,6 @@ export function CreatePlanDialog({
     setName("");
     setDescription("");
     setTag("feature");
-    setUserEditedName(false);
-    setSuggesting(false);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (abortRef.current) abortRef.current.abort();
     onClose();
   };
 
@@ -113,35 +90,30 @@ export function CreatePlanDialog({
           </label>
           <MarkdownEditor
             value={description}
-            onChange={handleDescriptionChange}
+            onChange={setDescription}
             height={150}
-            placeholder={
-              t("plan.description") + "..."
-            }
+            placeholder={t("plan.description") + "..."}
           />
-          {suggesting && (
-            <p className="text-xs text-blue-500 mt-1 flex items-center gap-1">
-              <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              AI 正在生成标题...
-            </p>
-          )}
         </div>
         <div>
-          <Input
-            label={t("plan.name")}
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            required
-            placeholder={suggesting ? t("common.loading") : ""}
-          />
-          {!userEditedName && name && (
-            <p className="text-xs text-gray-400 mt-1">
-              AI generated — edit to customize
-            </p>
-          )}
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Input
+                label={t("plan.name")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleSuggestTitle}
+              disabled={description.trim().length < 5}
+            >
+              {isZh ? "AI 生成" : "AI Title"}
+            </Button>
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -168,10 +140,7 @@ export function CreatePlanDialog({
           <Button variant="secondary" onClick={handleClose}>
             {t("common.cancel")}
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={!name}
-          >
+          <Button onClick={handleSubmit} disabled={!name}>
             {t("common.create")}
           </Button>
         </div>
