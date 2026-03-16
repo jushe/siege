@@ -88,13 +88,18 @@ export function SchemeCard({
           updateContent(content);
         }
         if (content.trim()) {
+          // Wait for backend to finish saving
+          await new Promise((r) => setTimeout(r, 1000));
           setChatHistory((prev) => [
             ...prev,
             { role: "ai", text: isZh ? "修改完成 ✓" : "Done ✓" },
           ]);
+          // Refetch to get the saved version
+          const schemeRes = await fetch(`/api/schemes/${scheme.id}`);
+          const updated = schemeRes.ok ? await schemeRes.json() : null;
           onUpdate(scheme.id, {
-            title: scheme.title,
-            content: content.trim(),
+            title: updated?.title || scheme.title,
+            content: updated?.content || content.trim(),
           });
           stopLoading(isZh ? "方案修改完成" : "Scheme modified");
         } else {

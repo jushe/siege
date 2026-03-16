@@ -75,12 +75,13 @@ export async function POST(req: NextRequest) {
         fullText += chunk;
         controller.enqueue(encoder.encode(chunk));
       }
-      controller.close();
-
-      // Save after stream completes
+      // Save BEFORE closing — ensures DB write happens even if client disconnects
       if (fullText.trim()) {
+        console.log(`[scheme-generate] Saving ${fullText.length} chars for plan ${planId}`);
         saveScheme(planId, fullText.trim(), plan.status);
+        console.log(`[scheme-generate] Saved successfully`);
       }
+      controller.close();
     },
   });
 

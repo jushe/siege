@@ -27,9 +27,13 @@ export function GenerateSchemeDialog({
   const t = useTranslations();
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [provider, setProvider] = useState("anthropic");
+  const [provider, setProvider] = useState("openai");
 
   useEffect(() => {
+    // Auto-detect default provider
+    fetch("/api/settings").then(r => r.json()).then(s => {
+      if (s.default_provider) setProvider(s.default_provider);
+    }).catch(() => {});
     if (open) {
       fetch("/api/skills")
         .then((r) => r.json())

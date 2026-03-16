@@ -55,8 +55,6 @@ Do NOT add explanations or comments about what you changed — just output the f
         fullText += chunk;
         controller.enqueue(encoder.encode(chunk));
       }
-      controller.close();
-
       if (fullText.trim()) {
         saveSchemeVersion(schemeId);
         const db = getDb();
@@ -65,6 +63,7 @@ Do NOT add explanations or comments about what you changed — just output the f
           .where(eq(schemes.id, schemeId))
           .run();
       }
+      controller.close();
     },
   });
 

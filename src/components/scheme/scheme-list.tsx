@@ -132,6 +132,8 @@ export function SchemeList({
         }
       }
 
+      // Wait for backend to finish saving (happens after stream close)
+      await new Promise((r) => setTimeout(r, 1000));
       await fetchSchemes();
       onPlanStatusChange();
       stopLoading(isZh ? "方案生成完成" : "Scheme generated");
