@@ -64,17 +64,27 @@ export async function POST(req: NextRequest) {
     model,
   });
 
-  const response = result.toTextStreamResponse();
+  // Tee the text stream: one for response, one for collecting to save
+  const textStream = result.textStream;
+  const encoder = new TextEncoder();
+  let fullText = "";
 
-  Promise.resolve(result.text)
-    .then((fullText) => {
+  const responseStream = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of textStream) {
+        fullText += chunk;
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+
+      // Save after stream completes
       if (fullText.trim()) {
         saveScheme(planId, fullText.trim(), plan.status);
       }
-    })
-    .catch((err) => {
-      console.error(`[scheme-generate] failed:`, err);
-    });
+    },
+  });
 
-  return response;
+  return new Response(responseStream, {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
 }

@@ -45,18 +45,30 @@ Do NOT add explanations or comments about what you changed — just output the f
   });
 
   // Save after stream completes
-  Promise.resolve(result.text).then((fullText) => {
-    if (fullText.trim()) {
-      saveSchemeVersion(schemeId);
-      const db = getDb();
-      db.update(schemes)
-        .set({ content: fullText.trim(), updatedAt: new Date().toISOString() })
-        .where(eq(schemes.id, schemeId))
-        .run();
-    }
-  }).catch((err) => {
-    console.error("[scheme-chat] failed:", err);
+  const textStream = result.textStream;
+  const encoder = new TextEncoder();
+  let fullText = "";
+
+  const responseStream = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of textStream) {
+        fullText += chunk;
+        controller.enqueue(encoder.encode(chunk));
+      }
+      controller.close();
+
+      if (fullText.trim()) {
+        saveSchemeVersion(schemeId);
+        const db = getDb();
+        db.update(schemes)
+          .set({ content: fullText.trim(), updatedAt: new Date().toISOString() })
+          .where(eq(schemes.id, schemeId))
+          .run();
+      }
+    },
   });
 
-  return result.toTextStreamResponse();
+  return new Response(responseStream, {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
 }

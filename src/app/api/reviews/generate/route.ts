@@ -101,55 +101,66 @@ export async function POST(req: NextRequest) {
 
   const result = streamText({ model: aiModel, system, prompt });
 
-  // Save after stream completes
-  Promise.resolve(result.text).then((text) => {
-      const jsonStr = text.startsWith("{") ? text : text.match(/\{[\s\S]*\}/)?.[0];
-      let parsed: any = null;
-      try { if (jsonStr) parsed = JSON.parse(jsonStr); } catch {}
+  const textStream = result.textStream;
+  const encoder = new TextEncoder();
+  let fullText = "";
 
-      const db = getDb();
-      if (parsed) {
-        const finalStatus = parsed.approved ? "approved" : "changes_requested";
-        db.update(reviews)
-          .set({ status: finalStatus, content: parsed.summary, updatedAt: new Date().toISOString() })
-          .where(eq(reviews.id, reviewId))
-          .run();
-
-        for (const item of parsed.items || []) {
-          db.insert(reviewItems)
-            .values({
-              id: crypto.randomUUID(),
-              reviewId,
-              targetType: type === "scheme" ? "scheme" : "schedule_item",
-              targetId: item.targetId || "",
-              title: item.title || "Finding",
-              content: item.content || "",
-              severity: item.severity || "info",
-              resolved: false,
-            })
-            .run();
-        }
-
-        if (type === "implementation" && parsed.approved) {
-          db.update(plans)
-            .set({ status: "testing", updatedAt: new Date().toISOString() })
-            .where(eq(plans.id, planId))
-            .run();
-        }
-      } else {
-        db.update(reviews)
-          .set({ status: "changes_requested", content: text.trim() || "Review completed.", updatedAt: new Date().toISOString() })
-          .where(eq(reviews.id, reviewId))
-          .run();
+  const responseStream = new ReadableStream({
+    async start(controller) {
+      for await (const chunk of textStream) {
+        fullText += chunk;
+        controller.enqueue(encoder.encode(chunk));
       }
-    })
-    .catch((err) => {
-      console.error("[review-generate] failed:", err);
-      db.update(reviews)
-        .set({ status: "changes_requested", content: `Review failed: ${err}`, updatedAt: new Date().toISOString() })
-        .where(eq(reviews.id, reviewId))
-        .run();
-    });
+      controller.close();
 
-  return result.toTextStreamResponse();
+      // Parse and save review
+      try {
+        const jsonStr = fullText.startsWith("{") ? fullText : fullText.match(/\{[\s\S]*\}/)?.[0];
+        let parsed: any = null;
+        try { if (jsonStr) parsed = JSON.parse(jsonStr); } catch {}
+
+        const db = getDb();
+        if (parsed) {
+          const finalStatus = parsed.approved ? "approved" : "changes_requested";
+          db.update(reviews)
+            .set({ status: finalStatus, content: parsed.summary, updatedAt: new Date().toISOString() })
+            .where(eq(reviews.id, reviewId))
+            .run();
+
+          for (const item of parsed.items || []) {
+            db.insert(reviewItems)
+              .values({
+                id: crypto.randomUUID(),
+                reviewId,
+                targetType: type === "scheme" ? "scheme" : "schedule_item",
+                targetId: item.targetId || "",
+                title: item.title || "Finding",
+                content: item.content || "",
+                severity: item.severity || "info",
+                resolved: false,
+              })
+              .run();
+          }
+
+          if (type === "implementation" && parsed.approved) {
+            db.update(plans)
+              .set({ status: "testing", updatedAt: new Date().toISOString() })
+              .where(eq(plans.id, planId))
+              .run();
+          }
+        } else {
+          db.update(reviews)
+            .set({ status: "changes_requested", content: fullText.trim() || "Review completed.", updatedAt: new Date().toISOString() })
+            .where(eq(reviews.id, reviewId))
+            .run();
+        }
+      } catch (err) {
+        console.error("[review-generate] save failed:", err);
+      }
+    },
+  });
+
+  return new Response(responseStream, {
+    headers: { "Content-Type": "text/plain; charset=utf-8" },
+  });
 }
