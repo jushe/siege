@@ -119,21 +119,7 @@ export function SchemeList({
         body: JSON.stringify({ planId, provider, skills }),
       });
 
-      if (res.status === 202) {
-        // Async mode (CLI): poll for new scheme
-        for (let i = 0; i < 60; i++) {
-          await new Promise((r) => setTimeout(r, 3000));
-          updateContent(isZh
-            ? `AI 正在生成方案，已等待 ${(i + 1) * 3} 秒...\n\n完成后将自动显示。`
-            : `Generating scheme... ${(i + 1) * 3}s elapsed.`);
-          const checkRes = await fetch(`/api/schemes?planId=${planId}`);
-          const checkData = await checkRes.json();
-          if (checkData.length > currentCount) {
-            break;
-          }
-        }
-      } else if (res.ok && res.body) {
-        // Streaming mode (SDK): read stream
+      if (res.ok && res.body) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let content = "";

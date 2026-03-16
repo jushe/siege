@@ -1,17 +1,18 @@
 import { streamText } from "ai";
-import { getModelId, type Provider } from "./provider";
+import { getConfiguredModel } from "./config";
+import type { Provider } from "./provider";
 
 interface SchemeGenerationInput {
   planName: string;
   planDescription: string;
   projectName: string;
   targetRepoPath: string;
-  provider: Provider;
+  provider?: Provider;
   model?: string;
 }
 
 export function generateSchemeStream(input: SchemeGenerationInput) {
-  const modelId = getModelId(input.provider, input.model);
+  const model = getConfiguredModel(input.provider, input.model);
 
   const systemPrompt = `You are a senior software architect. Your task is to generate a detailed technical scheme (plan/proposal) for a software development task.
 
@@ -32,7 +33,7 @@ Description: ${input.planDescription || "No description provided."}
 Generate a detailed technical scheme for this plan.`;
 
   return streamText({
-    model: modelId,
+    model,
     system: systemPrompt,
     prompt: userPrompt,
   });

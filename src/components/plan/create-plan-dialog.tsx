@@ -33,34 +33,20 @@ export function CreatePlanDialog({
 
     startLoading(isZh ? "AI 正在生成标题..." : "AI generating title...");
     try {
-      // Fire async request
       const res = await fetch("/api/plans/suggest-title", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description, projectId }),
+        body: JSON.stringify({ description }),
       });
-      const { requestId } = await res.json();
-
-      // Poll for result
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
-        updateContent(isZh
-          ? `AI 正在生成标题，已等待 ${(i + 1) * 3} 秒...`
-          : `Generating title... ${(i + 1) * 3}s elapsed.`);
-        const pollRes = await fetch(`/api/plans/suggest-title?requestId=${requestId}`);
-        const pollData = await pollRes.json();
-        if (pollData.status === "done" && pollData.title) {
-          const generatedTitle = pollData.title.trim();
-          setName(generatedTitle);
-          stopLoading(`${isZh ? "标题" : "Title"}: ${generatedTitle}`);
-          return;
-        }
-        if (pollData.status === "error") {
-          stopLoading(isZh ? "标题生成失败" : "Title generation failed");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.title) {
+          setName(data.title);
+          stopLoading(`${isZh ? "标题" : "Title"}: ${data.title}`);
           return;
         }
       }
-      stopLoading(isZh ? "标题生成超时" : "Title generation timed out");
+      stopLoading(isZh ? "标题生成失败" : "Title generation failed");
     } catch {
       stopLoading(isZh ? "标题生成失败" : "Failed");
     }
