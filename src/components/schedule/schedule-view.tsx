@@ -67,29 +67,28 @@ export function ScheduleView({
     setGenerating(true);
     startLoading(isZh ? "AI 正在生成排期..." : "AI generating schedule...");
     try {
-      await fetch("/api/schedules/generate", {
+      const res = await fetch("/api/schedules/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          planId,
-          provider: "anthropic",
-        }),
+        body: JSON.stringify({ planId, provider: "openai" }),
       });
 
-      for (let i = 0; i < 60; i++) {
-        await new Promise((r) => setTimeout(r, 3000));
-        updateContent(isZh
-          ? `正在生成排期，已等待 ${(i + 1) * 3} 秒...\n\nAI 正在分析方案并拆分为可执行任务。`
-          : `Generating schedule... ${(i + 1) * 3}s elapsed.\n\nAI is breaking schemes into executable tasks.`);
-        const res = await fetch(`/api/schedules?planId=${planId}`);
-        const data = await res.json();
-        if (data && data.items && data.items.length > 0) {
-          setSchedule(data);
-          onPlanStatusChange();
-          stopLoading(isZh ? "排期生成完成" : "Schedule generated");
-          break;
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let content = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          content += decoder.decode(value, { stream: true });
+          updateContent(content);
         }
       }
+
+      await new Promise((r) => setTimeout(r, 500));
+      await fetchSchedule();
+      onPlanStatusChange();
+      stopLoading(isZh ? "排期生成完成" : "Schedule generated");
     } catch {
       stopLoading(isZh ? "排期生成失败" : "Schedule generation failed");
     } finally {
