@@ -10,12 +10,14 @@ import { ReviewPanel } from "@/components/review/review-panel";
 interface PlanTabsProps {
   planId: string;
   planStatus: string;
+  projectId: string;
   onPlanStatusChange: () => void;
 }
 
 export function PlanTabs({
   planId,
   planStatus,
+  projectId,
   onPlanStatusChange,
 }: PlanTabsProps) {
   const t = useTranslations();
@@ -39,6 +41,7 @@ export function PlanTabs({
         <ScheduleView
           planId={planId}
           planStatus={planStatus}
+          projectId={projectId}
           onPlanStatusChange={onPlanStatusChange}
         />
       ),

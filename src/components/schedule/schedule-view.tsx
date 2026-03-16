@@ -35,16 +35,19 @@ interface Schedule {
 interface ScheduleViewProps {
   planId: string;
   planStatus: string;
+  projectId: string;
   onPlanStatusChange: () => void;
 }
 
 export function ScheduleView({
   planId,
   planStatus,
+  projectId,
   onPlanStatusChange,
 }: ScheduleViewProps) {
   const t = useTranslations();
   const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [gitInfo, setGitInfo] = useState<{ isGit: boolean; currentBranch?: string } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
   const [executing, setExecuting] = useState<string | null>(null);
@@ -59,9 +62,39 @@ export function ScheduleView({
 
   useEffect(() => {
     fetchSchedule();
-  }, [planId]);
+    // Check git status
+    fetch(`/api/projects/${projectId}`)
+      .then(r => r.json())
+      .then(p => {
+        if (p.targetRepoPath) {
+          fetch(`/api/git?path=${encodeURIComponent(p.targetRepoPath)}`)
+            .then(r => r.json())
+            .then(setGitInfo)
+            .catch(() => {});
+        }
+      })
+      .catch(() => {});
+  }, [planId, projectId]);
 
   const isZh = t("common.back") === "返回";
+
+  const handleCreateBranch = async () => {
+    const branchName = prompt(isZh ? "输入分支名:" : "Branch name:", `feat/plan-${planId.slice(0, 8)}`);
+    if (!branchName) return;
+    const projRes = await fetch(`/api/projects/${projectId}`);
+    const proj = await projRes.json();
+    const res = await fetch("/api/git", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ repoPath: proj.targetRepoPath, branchName }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      setGitInfo((prev) => prev ? { ...prev, currentBranch: data.branch } : prev);
+    } else {
+      alert(data.error);
+    }
+  };
 
   const handleGenerate = async () => {
     setGenerating(true);
@@ -176,14 +209,24 @@ export function ScheduleView({
         <h3 className="text-lg font-semibold">
           {t("plan.tabs.schedule")}
         </h3>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          {gitInfo?.isGit && (
+            <div className="flex items-center gap-1 text-xs">
+              <span className="text-gray-400 font-mono">
+                {gitInfo.currentBranch}
+              </span>
+              <Button variant="ghost" size="sm" onClick={handleCreateBranch}>
+                {isZh ? "创建分支" : "New Branch"}
+              </Button>
+            </div>
+          )}
           {(canGenerate || planStatus === "scheduled") && (
             <Button onClick={handleGenerate} disabled={generating}>
               {generating
                 ? (isZh ? "生成中..." : "Generating...")
                 : schedule
-                  ? (isZh ? "重新生成排期" : "Regenerate")
-                  : (isZh ? "生成排期" : "Generate Schedule")}
+                  ? (isZh ? "重新生成" : "Regenerate")
+                  : (isZh ? "生成排期" : "Generate")}
             </Button>
           )}
         </div>

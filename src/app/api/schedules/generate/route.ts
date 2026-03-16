@@ -19,9 +19,10 @@ function saveScheduleFromJson(planId: string, jsonText: string) {
   if (existing) db.delete(schedules).where(eq(schedules.id, existing.id)).run();
 
   const today = new Date();
-  let currentDate = new Date(today);
+  let currentHour = 0;
   const scheduleId = crypto.randomUUID();
-  const totalDays = items.reduce((sum: number, item: any) => sum + (item.durationDays || 1), 0);
+  const totalHours = items.reduce((sum: number, item: any) => sum + (item.estimatedHours || item.durationDays * 8 || 4), 0);
+  const totalDays = Math.ceil(totalHours / 8);
   const endDate = new Date(today);
   endDate.setDate(endDate.getDate() + totalDays);
 
@@ -32,9 +33,14 @@ function saveScheduleFromJson(planId: string, jsonText: string) {
   }).run();
 
   for (const item of items) {
-    const itemStart = new Date(currentDate);
-    const itemEnd = new Date(currentDate);
-    itemEnd.setDate(itemEnd.getDate() + (item.durationDays || 1));
+    const hours = item.estimatedHours || item.durationDays * 8 || 4;
+    const startDay = Math.floor(currentHour / 8);
+    const endDay = Math.floor((currentHour + hours) / 8);
+    const itemStart = new Date(today);
+    itemStart.setDate(itemStart.getDate() + startDay);
+    const itemEnd = new Date(today);
+    itemEnd.setDate(itemEnd.getDate() + endDay);
+    currentHour += hours;
     db.insert(scheduleItems).values({
       id: crypto.randomUUID(), scheduleId,
       schemeId: item.schemeId || null,
@@ -44,7 +50,6 @@ function saveScheduleFromJson(planId: string, jsonText: string) {
       order: item.order || 0, status: "pending", progress: 0,
       engine: "claude-code", skills: "[]",
     }).run();
-    currentDate = itemEnd;
   }
 
   db.update(plans)
@@ -82,13 +87,13 @@ Start directly with [ and end with ].
 </IMPORTANT>
 
 Break these confirmed schemes into executable schedule items.
-Each item should be completable in 1-3 days.
+Estimate effort in hours (1-8 hours per task).
 
 JSON array format — each object has:
 - schemeId: scheme ID string or null
 - title: short task title
 - description: markdown description of what to do
-- durationDays: number (1-3)
+- estimatedHours: number (1-8)
 - order: execution order starting from 1
 
 Plan: ${plan.name}

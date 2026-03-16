@@ -63,6 +63,7 @@ export default function PlanDetailPage({
       <PlanTabs
         planId={plan.id}
         planStatus={plan.status}
+        projectId={projectId}
         onPlanStatusChange={fetchPlan}
       />
     </div>

@@ -1,92 +1,88 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import dynamic from "next/dynamic";
-
 interface GanttTask {
   id: string;
   name: string;
   start: string;
   end: string;
   progress: number;
-  dependencies?: string[];
   custom_class?: string;
 }
 
 interface GanttChartProps {
   tasks: GanttTask[];
-  onDateChange?: (
-    taskId: string,
-    start: Date,
-    end: Date
-  ) => void;
+  onDateChange?: (taskId: string, start: Date, end: Date) => void;
   onProgressChange?: (taskId: string, progress: number) => void;
   onClick?: (taskId: string) => void;
-  viewMode?: "Day" | "Week" | "Month";
 }
 
-function GanttChartInner({
-  tasks,
-  onDateChange,
-  onProgressChange,
-  onClick,
-  viewMode = "Day",
-}: GanttChartProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const ganttRef = useRef<any>(null);
+const STATUS_COLORS: Record<string, string> = {
+  completed: "bg-green-500",
+  failed: "bg-red-500",
+  "": "bg-blue-500",
+};
 
-  useEffect(() => {
-    if (!containerRef.current || tasks.length === 0) return;
+export function GanttChart({ tasks, onClick }: GanttChartProps) {
+  if (tasks.length === 0) return null;
 
-    // Dynamic import to avoid SSR issues
-    import("frappe-gantt").then(({ default: Gantt }) => {
-      // Clear previous chart
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
-      }
+  // Find date range
+  const dates = tasks.flatMap((t) => [new Date(t.start), new Date(t.end)]);
+  const minDate = new Date(Math.min(...dates.map((d) => d.getTime())));
+  const maxDate = new Date(Math.max(...dates.map((d) => d.getTime())));
+  const totalMs = maxDate.getTime() - minDate.getTime() || 1;
 
-      const ganttTasks = tasks.map((t) => ({
-        id: t.id,
-        name: t.name,
-        start: t.start,
-        end: t.end,
-        progress: t.progress,
-        dependencies: t.dependencies?.join(", ") || "",
-        custom_class: t.custom_class || "",
-      }));
+  const formatDate = (d: string) => {
+    const date = new Date(d);
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  };
 
-      ganttRef.current = new Gantt(containerRef.current!, ganttTasks, {
-        view_mode: viewMode,
-        bar_height: 30,
-        column_width: 45,
-        padding: 18,
-        on_date_change: (task: any, start: Date, end: Date) => {
-          onDateChange?.(task.id, start, end);
-        },
-        on_progress_change: (task: any, progress: number) => {
-          onProgressChange?.(task.id, progress);
-        },
-        on_click: (task: any) => {
-          onClick?.(task.id);
-        },
-      });
-    });
+  return (
+    <div className="rounded-lg border bg-white p-4 overflow-x-auto">
+      <div className="min-w-[500px]">
+        {tasks.map((task) => {
+          const startOffset =
+            ((new Date(task.start).getTime() - minDate.getTime()) / totalMs) * 100;
+          const width =
+            ((new Date(task.end).getTime() - new Date(task.start).getTime()) / totalMs) * 100 || 5;
+          const barColor = STATUS_COLORS[task.custom_class || ""] || "bg-blue-500";
 
-    return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
-      }
-    };
-  }, [tasks, viewMode]);
-
-  if (tasks.length === 0) {
-    return null;
-  }
-
-  return <div ref={containerRef} className="overflow-x-auto bg-white rounded-lg border" />;
+          return (
+            <div
+              key={task.id}
+              className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-gray-50 rounded px-2"
+              onClick={() => onClick?.(task.id)}
+            >
+              <div className="w-36 text-xs text-gray-600 truncate flex-shrink-0">
+                {task.name}
+              </div>
+              <div className="flex-1 relative h-6 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className={`absolute h-full rounded-full ${barColor} transition-all`}
+                  style={{ left: `${startOffset}%`, width: `${Math.max(width, 2)}%` }}
+                >
+                  {/* Progress overlay */}
+                  {task.progress > 0 && task.progress < 100 && (
+                    <div
+                      className="absolute inset-y-0 left-0 bg-white/30 rounded-full"
+                      style={{ width: `${100 - task.progress}%`, right: 0, left: "auto" }}
+                    />
+                  )}
+                </div>
+                {/* Date labels */}
+                <span
+                  className="absolute text-[10px] text-gray-400 top-1"
+                  style={{ left: `${startOffset}%`, paddingLeft: 4 }}
+                >
+                  {formatDate(task.start)}
+                </span>
+              </div>
+              <div className="w-12 text-xs text-right text-gray-500 flex-shrink-0">
+                {task.progress}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
-
-// Wrap in dynamic to avoid SSR
-export const GanttChart = dynamic(() => Promise.resolve(GanttChartInner), {
-  ssr: false,
-});
