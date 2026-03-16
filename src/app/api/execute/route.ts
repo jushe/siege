@@ -7,8 +7,7 @@ import {
   projects,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getConfiguredModel } from "@/lib/ai/config";
-import { streamText } from "ai";
+import { spawn } from "child_process";
 import { scanAllSkills, getSkillContent } from "@/lib/skills/registry";
 import { parseJsonBody } from "@/lib/utils";
 
@@ -34,7 +33,7 @@ export async function POST(req: NextRequest) {
   const project = db.select().from(projects).where(eq(projects.id, plan.projectId)).get();
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
-  // Get skills
+  // Skills
   const skillNames: string[] = JSON.parse(item.skills || "[]");
   let skillsContent = "";
   if (skillNames.length > 0) {
@@ -55,7 +54,7 @@ export async function POST(req: NextRequest) {
       .run();
   }
 
-  // Gather context from previously completed tasks
+  // Previous tasks context
   const allItems = db.select().from(scheduleItems)
     .where(eq(scheduleItems.scheduleId, item.scheduleId))
     .all()
@@ -65,56 +64,93 @@ export async function POST(req: NextRequest) {
   for (const prev of allItems) {
     if (prev.id === item.id) break;
     if (prev.status === "completed" && prev.executionLog) {
-      previousContext += `\n### Completed Task #${prev.order}: ${prev.title}\n${prev.executionLog.slice(0, 3000)}\n`;
+      previousContext += `\nCompleted Task #${prev.order} "${prev.title}":\n${prev.executionLog.slice(0, 3000)}\n`;
     }
   }
 
-  // Build prompt
-  const taskPrompt = `<IMPORTANT>
-You are being called as an API to implement a development task.
-Do NOT ask questions. Do NOT request permissions.
-Describe what changes you would make, with exact file paths and code.
-Output Markdown with code blocks.
-</IMPORTANT>
+  // Build prompt for claude CLI (with tool use)
+  const prompt = `${previousContext ? `Previously completed tasks:\n${previousContext}\n---\n` : ""}
 
-Project: ${project.name}
-Repository: ${project.targetRepoPath}
+Implement task #${item.order}: ${item.title}
 
-${previousContext ? `## Previously Completed Tasks\nThe following tasks have already been implemented. Build on their work.\n${previousContext}\n---\n` : ""}
-
-## Current Task #${item.order}: ${item.title}
 ${item.description || ""}
 
-${skillsContent ? `\nSkills context:\n${skillsContent}` : ""}
+${skillsContent ? `Skills context:\n${skillsContent}` : ""}
 
-Implement this task. Reference and build upon the previous tasks' output where relevant.`;
+Read the relevant files, implement the changes, and run tests if applicable.`;
 
-  const model = getConfiguredModel();
-  const result = streamText({ model, prompt: taskPrompt });
+  // Use claude CLI with tool use, streaming output
+  const proc = spawn("claude", ["-p", prompt, "--output-format", "stream-json", "--verbose"], {
+    cwd: project.targetRepoPath,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
 
-  const textStream = result.textStream;
   const encoder = new TextEncoder();
-  let fullText = "";
+  let fullLog = "";
 
   const responseStream = new ReadableStream({
-    async start(controller) {
-      for await (const chunk of textStream) {
-        fullText += chunk;
-        controller.enqueue(encoder.encode(chunk));
-      }
+    start(controller) {
+      let buffer = "";
 
-      // Save execution log and update status
-      const db = getDb();
-      db.update(scheduleItems)
-        .set({
-          status: "completed",
-          progress: 100,
-          executionLog: fullText,
-        })
-        .where(eq(scheduleItems.id, itemId))
-        .run();
+      proc.stdout?.on("data", (chunk: Buffer) => {
+        buffer += chunk.toString();
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
-      controller.close();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const event = JSON.parse(line);
+
+            // Extract text output from assistant messages
+            if (event.type === "assistant" && event.message?.content) {
+              for (const block of event.message.content) {
+                if (block.type === "text" && block.text) {
+                  fullLog += block.text;
+                  controller.enqueue(encoder.encode(block.text));
+                }
+                if (block.type === "tool_use") {
+                  const toolMsg = `\n> **Tool: ${block.name}**\n`;
+                  fullLog += toolMsg;
+                  controller.enqueue(encoder.encode(toolMsg));
+                }
+              }
+            }
+
+            // Tool results
+            if (event.type === "result" && event.result) {
+              const resultMsg = `\n> Result: ${String(event.result).slice(0, 200)}\n`;
+              fullLog += resultMsg;
+              controller.enqueue(encoder.encode(resultMsg));
+            }
+          } catch {
+            // skip non-JSON lines
+          }
+        }
+      });
+
+      proc.stderr?.on("data", () => {});
+
+      proc.on("close", (code) => {
+        // Save log and update status
+        const db = getDb();
+        db.update(scheduleItems)
+          .set({
+            status: code === 0 ? "completed" : "failed",
+            progress: code === 0 ? 100 : 0,
+            executionLog: fullLog || "No output",
+          })
+          .where(eq(scheduleItems.id, itemId))
+          .run();
+
+        controller.close();
+      });
+
+      proc.on("error", (err) => {
+        fullLog += `\nError: ${err.message}`;
+        controller.enqueue(encoder.encode(`\nError: ${err.message}`));
+        controller.close();
+      });
     },
   });
 
