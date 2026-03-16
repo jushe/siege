@@ -37,8 +37,10 @@ export async function POST(req: NextRequest) {
   const model = getConfiguredModel();
   const result = streamText({
     model,
-    system: `You are a senior software architect helping to revise a technical scheme.
-You will receive the current scheme content and a modification request.
+    system: `You are a scheme editor. Output Markdown only. No conversation.
+
+CRITICAL: Do NOT ask questions, request access, or use tools. Just modify the scheme as requested.
+
 Apply the requested changes and return the COMPLETE updated scheme in Markdown.
 Do NOT add explanations or comments about what you changed — just output the full updated scheme.`,
     prompt: `## Current Scheme\n\n${scheme.content}\n\n## Modification Request\n\n${message}`,

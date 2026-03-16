@@ -26,7 +26,9 @@ function buildReviewPrompt(
     .join("\n\n");
 
   return {
-    system: `You are a senior software engineer conducting a thorough review of ${contextLabel}.
+    system: `You are a code review engine. Output JSON only. No conversation.
+
+CRITICAL: Do NOT ask questions, request access, or use tools. Review based solely on the content provided.
 
 Review for: completeness, correctness, quality, risks, security.
 
@@ -35,7 +37,7 @@ Output a JSON object with:
 - items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical")
 - approved: boolean (false if any critical items)
 
-Output ONLY the JSON object.`,
+Output ONLY the JSON object. No other text before or after.`,
     prompt: `Plan: ${planName}\n\n${itemsSummary}`,
   };
 }

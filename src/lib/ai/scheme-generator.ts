@@ -14,27 +14,46 @@ interface SchemeGenerationInput {
 export function generateSchemeStream(input: SchemeGenerationInput) {
   const model = getConfiguredModel(input.provider, input.model);
 
-  const systemPrompt = `You are a senior software architect. Your task is to generate a detailed technical scheme (plan/proposal) for a software development task.
+  const prompt = `<IMPORTANT>
+You are being called as an API endpoint. You MUST follow these rules:
+1. Do NOT use any tools or try to read files
+2. Do NOT ask questions or request permissions
+3. Do NOT say "let me check" or "I need access"
+4. Start your output DIRECTLY with "## Overview"
+5. Output ONLY Markdown content, no conversation
+</IMPORTANT>
 
-Output your response in Markdown format with clear sections:
-- ## Overview: Brief summary of the approach
-- ## Technical Details: Specific implementation approach, technologies, patterns
-- ## Key Decisions: Important architectural decisions and trade-offs
-- ## Risks & Mitigations: Potential risks and how to mitigate them
-- ## Estimated Effort: Rough breakdown of effort
+Generate a detailed technical scheme for this project plan.
+Base your scheme on the description. Make reasonable assumptions if details are missing.
+Write in the same language as the description.
 
-Be specific, actionable, and practical. Reference the target repository path when relevant.`;
-
-  const userPrompt = `Project: ${input.projectName}
+Project: ${input.projectName}
 Repository: ${input.targetRepoPath}
 Plan: ${input.planName}
-Description: ${input.planDescription || "No description provided."}
 
-Generate a detailed technical scheme for this plan.`;
+Description:
+${input.planDescription || "No description provided."}
+
+---
+Output the scheme now:
+
+## Overview
+Brief summary of the approach
+
+## Technical Details
+Files to modify, functions, data structures, APIs, with code examples
+
+## Key Decisions
+Architectural decisions and trade-offs
+
+## Risks & Mitigations
+Potential issues and solutions
+
+## Estimated Effort
+Breakdown by component`;
 
   return streamText({
     model,
-    system: systemPrompt,
-    prompt: userPrompt,
+    prompt,
   });
 }
