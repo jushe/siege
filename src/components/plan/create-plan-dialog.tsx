@@ -50,8 +50,9 @@ export function CreatePlanDialog({
         const pollRes = await fetch(`/api/plans/suggest-title?requestId=${requestId}`);
         const pollData = await pollRes.json();
         if (pollData.status === "done" && pollData.title) {
-          setName(pollData.title);
-          stopLoading(isZh ? "标题生成完成" : "Title generated");
+          const generatedTitle = pollData.title.trim();
+          setName(generatedTitle);
+          stopLoading(`${isZh ? "标题" : "Title"}: ${generatedTitle}`);
           return;
         }
         if (pollData.status === "error") {
