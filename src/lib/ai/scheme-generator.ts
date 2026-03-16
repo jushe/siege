@@ -14,18 +14,12 @@ interface SchemeGenerationInput {
 export function generateSchemeStream(input: SchemeGenerationInput) {
   const model = getConfiguredModel(input.provider, input.model);
 
-  const prompt = `<IMPORTANT>
-You are being called as an API endpoint. You MUST follow these rules:
-1. Do NOT use any tools or try to read files
-2. Do NOT ask questions or request permissions
-3. Do NOT say "let me check" or "I need access"
-4. Start your output DIRECTLY with "## Overview"
-5. Output ONLY Markdown content, no conversation
-</IMPORTANT>
+  const prompt = `You need to generate a technical scheme for a project plan.
 
-Generate a detailed technical scheme for this project plan.
-Base your scheme on the description. Make reasonable assumptions if details are missing.
-Write in the same language as the description.
+First, explore the project code to understand the codebase:
+1. Use Bash to run: ls ${input.targetRepoPath} and find ${input.targetRepoPath} -maxdepth 2 -name "*.go" -o -name "*.ts" -o -name "*.py" -o -name "*.java" | head -30
+2. Read key files like README, main entry points, and files related to the plan
+3. Then generate a detailed technical scheme based on what you learned
 
 Project: ${input.projectName}
 Repository: ${input.targetRepoPath}
@@ -34,23 +28,14 @@ Plan: ${input.planName}
 Description:
 ${input.planDescription || "No description provided."}
 
----
-Output the scheme now:
-
+After reading the code, output a Markdown technical scheme with:
 ## Overview
-Brief summary of the approach
-
-## Technical Details
-Files to modify, functions, data structures, APIs, with code examples
-
+## Technical Details (with specific file paths and code from the actual codebase)
 ## Key Decisions
-Architectural decisions and trade-offs
-
 ## Risks & Mitigations
-Potential issues and solutions
-
 ## Estimated Effort
-Breakdown by component`;
+
+Write in the same language as the description.`;
 
   return streamText({
     model,
