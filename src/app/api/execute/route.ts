@@ -86,7 +86,7 @@ Read the relevant files, implement the changes, and run tests if applicable.`;
   const cwd = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
 
   // Use claude CLI with tool use, streaming output
-  const proc = spawn("claude", ["-p", prompt, "--output-format", "stream-json", "--verbose"], {
+  const proc = spawn("claude", ["-p", prompt, "--output-format", "stream-json", "--verbose", "--dangerously-skip-permissions"], {
     cwd,
     stdio: ["pipe", "pipe", "pipe"],
     shell: true,
