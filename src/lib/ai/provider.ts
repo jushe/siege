@@ -64,5 +64,5 @@ export function createModel(
     ...(config?.apiKey && { apiKey: config.apiKey }),
     ...(baseURL && { baseURL }),
   });
-  return openai(modelName);
+  return openai.chat(modelName);
 }
