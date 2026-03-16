@@ -6,27 +6,48 @@ import fs from "fs";
 import path from "path";
 
 const LOCK_FILE = path.join(process.cwd(), "data", ".ai-lock");
+const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-function waitForLock(): Promise<void> {
-  return new Promise((resolve) => {
-    const check = () => {
-      try {
-        if (!fs.existsSync(LOCK_FILE)) { resolve(); return; }
-        const pid = fs.readFileSync(LOCK_FILE, "utf-8").trim();
-        try { process.kill(Number(pid), 0); } catch { fs.unlinkSync(LOCK_FILE); resolve(); return; }
-      } catch { resolve(); return; }
-      setTimeout(check, 1000);
-    };
-    check();
-  });
+function isLocked(): boolean {
+  try {
+    if (!fs.existsSync(LOCK_FILE)) return false;
+    const content = fs.readFileSync(LOCK_FILE, "utf-8").trim();
+    const lockTime = Number(content);
+    if (isNaN(lockTime)) return false;
+    // Expired?
+    if (Date.now() - lockTime > LOCK_TIMEOUT_MS) {
+      fs.unlinkSync(LOCK_FILE);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function acquireLock() { fs.writeFileSync(LOCK_FILE, String(process.pid)); }
-function releaseLock() { try { fs.unlinkSync(LOCK_FILE); } catch {} }
+function acquireLock() {
+  fs.writeFileSync(LOCK_FILE, String(Date.now()));
+}
+
+function releaseLock() {
+  try { fs.unlinkSync(LOCK_FILE); } catch {}
+}
+
+async function waitForLock(timeoutMs = 5 * 60 * 1000): Promise<void> {
+  const start = Date.now();
+  while (isLocked()) {
+    if (Date.now() - start > timeoutMs) {
+      // Force release stale lock
+      releaseLock();
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+}
 
 /**
  * Generate text using SDK if API key available, otherwise fall back to claude CLI.
- * CLI calls use file lock to prevent process pile-up (survives hot reload).
+ * CLI calls use timestamp-based file lock to prevent concurrent processes.
  */
 export async function generateTextAuto(options: {
   provider?: Provider;
@@ -47,7 +68,6 @@ export async function generateTextAuto(options: {
     return { text: result.text.trim() };
   }
 
-  // Fallback to claude CLI — wait for file lock
   const fullPrompt = options.system
     ? `${options.system}\n\n---\n\n${options.prompt}`
     : options.prompt;
