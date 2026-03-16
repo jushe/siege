@@ -93,13 +93,28 @@ export function ReviewPanel({
     setGenerating(true);
     startLoading(isZh ? "AI 正在审查..." : "AI reviewing...");
     try {
-      await fetch("/api/reviews/generate", {
+      const res = await fetch("/api/reviews/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ planId, type, provider: "anthropic" }),
       });
-      // API returns 202 immediately, start polling
-      startPolling();
+
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let content = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          content += decoder.decode(value, { stream: true });
+          updateContent(content);
+        }
+      }
+
+      await fetchReviews();
+      onPlanStatusChange();
+      stopLoading(isZh ? "审查完成" : "Review completed");
+      setGenerating(false);
     } catch {
       setGenerating(false);
     }

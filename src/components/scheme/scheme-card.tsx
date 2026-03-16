@@ -70,33 +70,38 @@ export function SchemeCard({
     setChatInput("");
     setChatting(true);
 
-    const originalUpdatedAt = scheme.updatedAt;
-
     try {
-      await fetch("/api/schemes/chat", {
+      const res = await fetch("/api/schemes/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ schemeId: scheme.id, message }),
       });
 
-      // Poll for update
-      const updated = await pollSchemeUpdate(originalUpdatedAt);
-      if (updated) {
-        setChatHistory((prev) => [
-          ...prev,
-          { role: "ai", text: isZh ? "修改完成 ✓" : "Done ✓" },
-        ]);
-        onUpdate(scheme.id, {
-          title: updated.title,
-          content: updated.content,
-        });
-        stopLoading(isZh ? "方案修改完成" : "Scheme modified");
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let content = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          content += decoder.decode(value, { stream: true });
+          updateContent(content);
+        }
+        if (content.trim()) {
+          setChatHistory((prev) => [
+            ...prev,
+            { role: "ai", text: isZh ? "修改完成 ✓" : "Done ✓" },
+          ]);
+          onUpdate(scheme.id, {
+            title: scheme.title,
+            content: content.trim(),
+          });
+          stopLoading(isZh ? "方案修改完成" : "Scheme modified");
+        } else {
+          stopLoading(isZh ? "修改失败" : "Failed");
+        }
       } else {
-        setChatHistory((prev) => [
-          ...prev,
-          { role: "ai", text: isZh ? "修改超时" : "Timed out" },
-        ]);
-        stopLoading(isZh ? "修改超时" : "Timed out");
+        stopLoading(isZh ? "修改失败" : "Failed");
       }
     } catch {
       setChatHistory((prev) => [

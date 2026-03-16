@@ -9,8 +9,8 @@ import {
   reviewItems,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { generateTextAuto } from "@/lib/ai/generate";
-import { getPlanSessionId, savePlanSessionId } from "@/lib/ai/session";
+import { getConfiguredModel } from "@/lib/ai/config";
+import { streamText } from "ai";
 import type { Provider } from "@/lib/ai/provider";
 import { parseJsonBody } from "@/lib/utils";
 
@@ -96,21 +96,18 @@ export async function POST(req: NextRequest) {
     .values({ id: reviewId, planId, type, status: "in_progress" })
     .run();
 
-  // Start async generation — don't await, return immediately
   const { system, prompt } = buildReviewPrompt(type, plan.name, itemsToReview);
+  const aiModel = getConfiguredModel(provider || undefined, model);
 
-  const sessionId = getPlanSessionId(planId);
+  const result = streamText({ model: aiModel, system, prompt });
 
-  generateTextAuto({ provider: provider || "anthropic", model, system, prompt, sessionId })
-    .then((result) => {
-      if (result.sessionId) savePlanSessionId(planId, result.sessionId);
-      const text = result.text;
+  // Save after stream completes
+  Promise.resolve(result.text).then((text) => {
       const jsonStr = text.startsWith("{") ? text : text.match(/\{[\s\S]*\}/)?.[0];
       let parsed: any = null;
-      try {
-        if (jsonStr) parsed = JSON.parse(jsonStr);
-      } catch {}
+      try { if (jsonStr) parsed = JSON.parse(jsonStr); } catch {}
 
+      const db = getDb();
       if (parsed) {
         const finalStatus = parsed.approved ? "approved" : "changes_requested";
         db.update(reviews)
@@ -154,6 +151,5 @@ export async function POST(req: NextRequest) {
         .run();
     });
 
-  // Return immediately with the review ID — frontend will poll
-  return NextResponse.json({ id: reviewId, status: "in_progress" }, { status: 202 });
+  return result.toTextStreamResponse();
 }

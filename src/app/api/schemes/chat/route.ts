@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { schemes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { generateTextAuto } from "@/lib/ai/generate";
+import { getConfiguredModel } from "@/lib/ai/config";
+import { streamText } from "ai";
 import { parseJsonBody } from "@/lib/utils";
 import { saveSchemeVersion } from "@/lib/scheme-version";
 
@@ -33,24 +34,29 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Scheme not found" }, { status: 404 });
   }
 
-  // Start async — return immediately
-  generateTextAuto({
+  const model = getConfiguredModel();
+  const result = streamText({
+    model,
     system: `You are a senior software architect helping to revise a technical scheme.
 You will receive the current scheme content and a modification request.
 Apply the requested changes and return the COMPLETE updated scheme in Markdown.
 Do NOT add explanations or comments about what you changed — just output the full updated scheme.`,
     prompt: `## Current Scheme\n\n${scheme.content}\n\n## Modification Request\n\n${message}`,
-  })
-    .then((result) => {
+  });
+
+  // Save after stream completes
+  Promise.resolve(result.text).then((fullText) => {
+    if (fullText.trim()) {
       saveSchemeVersion(schemeId);
+      const db = getDb();
       db.update(schemes)
-        .set({ content: result.text, updatedAt: new Date().toISOString() })
+        .set({ content: fullText.trim(), updatedAt: new Date().toISOString() })
         .where(eq(schemes.id, schemeId))
         .run();
-    })
-    .catch((err) => {
-      console.error("[scheme-chat] failed:", err);
-    });
+    }
+  }).catch((err) => {
+    console.error("[scheme-chat] failed:", err);
+  });
 
-  return NextResponse.json({ status: "processing", schemeId }, { status: 202 });
+  return result.toTextStreamResponse();
 }

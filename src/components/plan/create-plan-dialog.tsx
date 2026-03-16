@@ -38,11 +38,20 @@ export function CreatePlanDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description }),
       });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.title) {
-          setName(data.title);
-          stopLoading(`${isZh ? "标题" : "Title"}: ${data.title}`);
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let content = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          content += decoder.decode(value, { stream: true });
+          updateContent(content);
+        }
+        const title = content.trim().split("\n")[0].replace(/^["'#*]+|["'*]+$/g, "").trim().slice(0, 50);
+        if (title) {
+          setName(title);
+          stopLoading(`${isZh ? "标题" : "Title"}: ${title}`);
           return;
         }
       }
