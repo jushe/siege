@@ -149,7 +149,7 @@ export function ScheduleView({
 
   const handleExecuteItem = async (itemId: string, skills: string[] = []) => {
     setExecuting(itemId);
-    startLoading(isZh ? "AI 正在执行任务（使用 Claude CLI）..." : "AI executing task (Claude CLI)...");
+    startLoading(isZh ? "AI 正在执行任务..." : "AI executing task...");
 
     try {
       const res = await fetch("/api/execute", {

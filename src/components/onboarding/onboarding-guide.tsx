@@ -537,7 +537,7 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
                 { icon: "📋", title: isZh ? "1. 创建计划" : "1. Create Plan", desc: isZh ? "描述你的需求，AI 自动生成标题。在文件夹中组织多个计划。" : "Describe your needs, AI generates the title. Organize plans in folders." },
                 { icon: "🔍", title: isZh ? "2. 生成方案" : "2. Generate Scheme", desc: isZh ? "AI 搜索互联网和本地代码，生成技术方案。你可以编辑和审查。" : "AI searches the web and local code to generate technical schemes. Edit and review." },
                 { icon: "📊", title: isZh ? "3. 生成排期" : "3. Generate Schedule", desc: isZh ? "确认方案后，AI 拆解为可执行任务，甘特图可视化排期。" : "After confirming schemes, AI breaks them into executable tasks with Gantt chart." },
-                { icon: "⚡", title: isZh ? "4. 执行" : "4. Execute", desc: isZh ? "通过 Claude Code 或 Codex 自动执行，实时查看进度。" : "Execute via Claude Code or Codex CLI with real-time progress." },
+                { icon: "⚡", title: isZh ? "4. 执行" : "4. Execute", desc: isZh ? "AI 自动执行任务，实时查看进度。" : "AI executes tasks automatically with real-time progress." },
                 { icon: "🔎", title: isZh ? "5. 代码审查" : "5. Code Review", desc: isZh ? "AI 审查实现代码的质量、安全性和可维护性。" : "AI reviews code quality, security, and maintainability." },
                 { icon: "✅", title: isZh ? "6. 测试" : "6. Test", desc: isZh ? "AI 生成测试用例并运行，确保实现正确。" : "AI generates and runs tests to verify the implementation." },
               ].map((item) => (
