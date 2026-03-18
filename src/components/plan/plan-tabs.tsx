@@ -56,7 +56,7 @@ export function PlanTabs({
     },
     {
       id: "code_review",
-      label: "Code Review",
+      label: t("plan.tabs.codeReview"),
       content: (
         <ReviewPanel
           planId={planId}

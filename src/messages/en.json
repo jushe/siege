@@ -52,6 +52,7 @@
     "tabs": {
       "schemes": "Schemes",
       "schedule": "Schedule",
+      "codeReview": "Code Review",
       "tests": "Tests",
       "logs": "Execution Log"
     },
