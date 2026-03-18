@@ -147,6 +147,9 @@ export async function POST(req: NextRequest) {
   if (allSkillNames.length > 0) {
     const allSkills = scanAllSkills();
     skillsContent = getSkillContent(allSkills, allSkillNames);
+    console.log(`[execute] Skills requested: ${JSON.stringify(allSkillNames)}, matched: ${skillsContent.length > 0}`);
+  } else {
+    console.log(`[execute] No skills selected`);
   }
 
   // Update status
