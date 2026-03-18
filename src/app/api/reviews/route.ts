@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { reviews, reviewItems } from "@/lib/db/schema";
+import { reviews, reviewItems, reviewComments } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -25,7 +25,12 @@ export async function GET(req: NextRequest) {
       .from(reviewItems)
       .where(eq(reviewItems.reviewId, review.id))
       .all();
-    return { ...review, items };
+    const comments = db
+      .select()
+      .from(reviewComments)
+      .where(eq(reviewComments.reviewId, review.id))
+      .all();
+    return { ...review, items, comments };
   });
 
   return NextResponse.json(result);

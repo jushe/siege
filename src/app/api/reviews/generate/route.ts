@@ -7,23 +7,64 @@ import {
   schedules,
   reviews,
   reviewItems,
+  projects,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getConfiguredModel } from "@/lib/ai/config";
 import { streamText } from "ai";
 import type { Provider } from "@/lib/ai/provider";
 import { parseJsonBody } from "@/lib/utils";
+import { execSync } from "child_process";
+import fs from "fs";
+
+function getGitUnifiedDiff(repoPath: string): string {
+  try {
+    // Get unified diff of all changes vs HEAD (staged + unstaged)
+    const diff = execSync("git diff HEAD", {
+      cwd: repoPath,
+      encoding: "utf-8",
+      timeout: 10000,
+      maxBuffer: 1024 * 1024,
+    });
+
+    // Also include untracked files as diffs
+    const untracked = execSync("git ls-files --others --exclude-standard", {
+      cwd: repoPath,
+      encoding: "utf-8",
+      timeout: 5000,
+    }).trim();
+
+    let untrackedDiff = "";
+    if (untracked) {
+      for (const filePath of untracked.split("\n")) {
+        if (!filePath) continue;
+        try {
+          const content = fs.readFileSync(`${repoPath}/${filePath}`, "utf-8");
+          const lines = content.split("\n").map((l) => `+${l}`).join("\n");
+          untrackedDiff += `\n--- /dev/null\n+++ b/${filePath}\n${lines}\n`;
+        } catch { /* skip */ }
+      }
+    }
+
+    return (diff + untrackedDiff).slice(0, 50000); // cap for prompt size
+  } catch {
+    return "";
+  }
+}
 
 function buildReviewPrompt(
   type: "scheme" | "implementation",
   planName: string,
   items: Array<{ id: string; title: string; content: string }>
 ) {
-  const contextLabel =
-    type === "scheme" ? "technical schemes/proposals" : "implemented code changes";
   const itemsSummary = items
     .map((item) => `### ${item.title} (id: ${item.id})\n${item.content}`)
     .join("\n\n");
+
+  const itemsSchema =
+    type === "implementation"
+      ? `- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical"), filePath (string, path of the file this finding relates to), lineNumber (number, the line in the new version of the file)`
+      : `- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical")`;
 
   return {
     system: `You are a code review engine. Output JSON only. No conversation.
@@ -34,7 +75,7 @@ Review for: completeness, correctness, quality, risks, security.
 
 Output a JSON object with:
 - summary: overall review summary as markdown (string)
-- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical")
+${itemsSchema}
 - approved: boolean (false if any critical items)
 
 Output ONLY the JSON object. No other text before or after.`,
@@ -76,16 +117,38 @@ export async function POST(req: NextRequest) {
     if (!schedule) {
       return NextResponse.json({ error: "No schedule found" }, { status: 400 });
     }
-    itemsToReview = db
+
+    const project = db.select().from(projects).where(eq(projects.id, plan.projectId)).get();
+    const repoPath = project?.targetRepoPath;
+
+    // Get git diff from the target repo
+    let gitDiff = "";
+    if (repoPath && fs.existsSync(repoPath)) {
+      gitDiff = getGitUnifiedDiff(repoPath);
+    }
+
+    const allScheduleItems = db
       .select()
       .from(scheduleItems)
       .where(eq(scheduleItems.scheduleId, schedule.id))
-      .all()
-      .map((i) => ({
+      .all();
+
+    if (gitDiff) {
+      // Use git diff as the review content — associate with first schedule item as targetId
+      const firstItemId = allScheduleItems[0]?.id || "";
+      itemsToReview = [{
+        id: firstItemId,
+        title: "Code Changes (git diff)",
+        content: `### Git Diff\n\`\`\`diff\n${gitDiff}\n\`\`\``,
+      }];
+    } else {
+      // Fallback: use execution logs
+      itemsToReview = allScheduleItems.map((i) => ({
         id: i.id,
         title: i.title,
         content: `${i.description || ""}\n\n### Execution Log\n\`\`\`\n${i.executionLog || "No output"}\n\`\`\``,
       }));
+    }
   }
 
   if (itemsToReview.length === 0) {
@@ -140,6 +203,8 @@ export async function POST(req: NextRequest) {
                 content: item.content || "",
                 severity: item.severity || "info",
                 resolved: false,
+                filePath: item.filePath || null,
+                lineNumber: item.lineNumber || null,
               })
               .run();
           }

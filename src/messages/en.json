@@ -103,7 +103,20 @@
       "in_progress": "In Progress",
       "approved": "Approved",
       "changes_requested": "Changes Requested"
-    }
+    },
+    "changedFiles": "Changed Files",
+    "additions": "additions",
+    "deletions": "deletions",
+    "noChanges": "No file changes found",
+    "addComment": "Add Comment",
+    "submitComment": "Submit",
+    "commentPlaceholder": "Describe the issue or suggest a change...",
+    "applyFix": "Apply Fix",
+    "aiSuggestion": "AI Suggestion",
+    "fixApplied": "Fix Applied",
+    "noSnapshots": "No file snapshots. Run tasks first.",
+    "viewDiff": "View Diff",
+    "viewFindings": "Findings List"
   },
   "folder": {
     "create": "New Folder",

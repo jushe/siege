@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { TimeAgo } from "@/components/ui/time-ago";
+import { computeDiff } from "@/lib/diff";
 
 interface Version {
   id: string;
@@ -21,62 +22,6 @@ interface SchemeVersionsProps {
   open: boolean;
   onClose: () => void;
   onRestore: (content: string) => void;
-}
-
-function computeDiff(
-  oldText: string,
-  newText: string
-): Array<{ type: "same" | "add" | "remove"; text: string }> {
-  const oldLines = oldText.split("\n");
-  const newLines = newText.split("\n");
-  const result: Array<{ type: "same" | "add" | "remove"; text: string }> = [];
-
-  const maxLen = Math.max(oldLines.length, newLines.length);
-  let oi = 0;
-  let ni = 0;
-
-  while (oi < oldLines.length || ni < newLines.length) {
-    if (oi >= oldLines.length) {
-      result.push({ type: "add", text: newLines[ni] });
-      ni++;
-    } else if (ni >= newLines.length) {
-      result.push({ type: "remove", text: oldLines[oi] });
-      oi++;
-    } else if (oldLines[oi] === newLines[ni]) {
-      result.push({ type: "same", text: oldLines[oi] });
-      oi++;
-      ni++;
-    } else {
-      // Look ahead to find match
-      let foundInNew = -1;
-      let foundInOld = -1;
-      for (let j = ni + 1; j < Math.min(ni + 5, newLines.length); j++) {
-        if (newLines[j] === oldLines[oi]) { foundInNew = j; break; }
-      }
-      for (let j = oi + 1; j < Math.min(oi + 5, oldLines.length); j++) {
-        if (oldLines[j] === newLines[ni]) { foundInOld = j; break; }
-      }
-
-      if (foundInNew >= 0 && (foundInOld < 0 || foundInNew - ni <= foundInOld - oi)) {
-        for (let j = ni; j < foundInNew; j++) {
-          result.push({ type: "add", text: newLines[j] });
-        }
-        ni = foundInNew;
-      } else if (foundInOld >= 0) {
-        for (let j = oi; j < foundInOld; j++) {
-          result.push({ type: "remove", text: oldLines[j] });
-        }
-        oi = foundInOld;
-      } else {
-        result.push({ type: "remove", text: oldLines[oi] });
-        result.push({ type: "add", text: newLines[ni] });
-        oi++;
-        ni++;
-      }
-    }
-  }
-
-  return result;
 }
 
 export function SchemeVersions({

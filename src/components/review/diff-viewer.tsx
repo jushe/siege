@@ -1,0 +1,271 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { useTranslations } from "next-intl";
+import { computeDiff } from "@/lib/diff";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { InlineComment } from "./inline-comment";
+import hljs from "highlight.js";
+
+interface ReviewItem {
+  id: string;
+  title: string;
+  content: string | null;
+  severity: string;
+  resolved: boolean;
+  filePath: string | null;
+  lineNumber: number | null;
+}
+
+interface ReviewComment {
+  id: string;
+  reviewId: string;
+  filePath: string;
+  lineNumber: number;
+  content: string;
+  aiResponse: string | null;
+  status: string;
+  createdAt: string;
+}
+
+interface DiffViewerProps {
+  filePath: string;
+  contentBefore: string;
+  contentAfter: string;
+  findings: ReviewItem[];
+  comments: ReviewComment[];
+  reviewId: string;
+  onCommentAdded: () => void;
+}
+
+const severityColors: Record<string, string> = {
+  critical: "bg-red-50 border-red-300 text-red-800",
+  warning: "bg-yellow-50 border-yellow-300 text-yellow-800",
+  info: "bg-blue-50 border-blue-300 text-blue-800",
+};
+
+const extToLang: Record<string, string> = {
+  ".ts": "typescript", ".tsx": "typescript",
+  ".js": "javascript", ".jsx": "javascript",
+  ".rs": "rust", ".go": "go", ".py": "python",
+  ".java": "java", ".kt": "kotlin",
+  ".c": "c", ".cpp": "cpp", ".h": "cpp",
+  ".css": "css", ".scss": "scss",
+  ".html": "html", ".vue": "html",
+  ".json": "json", ".yaml": "yaml", ".yml": "yaml",
+  ".toml": "toml", ".md": "markdown",
+  ".sql": "sql", ".sh": "bash", ".bash": "bash",
+  ".xml": "xml", ".swift": "swift",
+  ".rb": "ruby", ".php": "php",
+  ".lua": "lua", ".zig": "zig",
+};
+
+function getLanguage(filePath: string): string | undefined {
+  const ext = filePath.slice(filePath.lastIndexOf("."));
+  return extToLang[ext];
+}
+
+/**
+ * Highlight full source text, return per-line HTML strings.
+ * highlight.js produces HTML that can span across lines (e.g. multi-line strings),
+ * so we track open <span> tags to keep each line self-contained.
+ */
+function highlightLines(text: string, lang: string | undefined): string[] {
+  if (!text) return [];
+
+  let html: string;
+  try {
+    if (lang) {
+      html = hljs.highlight(text, { language: lang, ignoreIllegals: true }).value;
+    } else {
+      html = hljs.highlightAuto(text).value;
+    }
+  } catch {
+    // Fallback: escape HTML
+    html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // Split highlighted HTML by newlines, tracking open spans
+  const rawLines = html.split("\n");
+  const result: string[] = [];
+  let openSpans: string[] = []; // stack of opening <span ...> tags
+
+  for (const rawLine of rawLines) {
+    // Prepend unclosed spans from previous line
+    let line = openSpans.join("") + rawLine;
+
+    // Track span opens/closes in this line to update state
+    const opens = rawLine.match(/<span[^>]*>/g) || [];
+    const closes = rawLine.match(/<\/span>/g) || [];
+
+    // Update the open spans stack
+    for (const tag of opens) openSpans.push(tag);
+    for (let i = 0; i < closes.length; i++) openSpans.pop();
+
+    // Close any spans that are still open for this line's HTML to be valid
+    line += "</span>".repeat(openSpans.length);
+
+    result.push(line);
+  }
+
+  return result;
+}
+
+export function DiffViewer({
+  filePath,
+  contentBefore,
+  contentAfter,
+  findings,
+  comments,
+  reviewId,
+  onCommentAdded,
+}: DiffViewerProps) {
+  const t = useTranslations();
+  const [commentLine, setCommentLine] = useState<number | null>(null);
+  const diffLines = computeDiff(contentBefore, contentAfter);
+
+  const lang = getLanguage(filePath);
+
+  // Pre-highlight old and new content, get per-line HTML
+  const oldHighlighted = useMemo(() => highlightLines(contentBefore, lang), [contentBefore, lang]);
+  const newHighlighted = useMemo(() => highlightLines(contentAfter, lang), [contentAfter, lang]);
+
+  const findingsMap = new Map<number, ReviewItem[]>();
+  for (const f of findings) {
+    if (f.filePath === filePath && f.lineNumber) {
+      const existing = findingsMap.get(f.lineNumber) || [];
+      existing.push(f);
+      findingsMap.set(f.lineNumber, existing);
+    }
+  }
+
+  const commentsMap = new Map<number, ReviewComment[]>();
+  for (const c of comments) {
+    if (c.filePath === filePath) {
+      const existing = commentsMap.get(c.lineNumber) || [];
+      existing.push(c);
+      commentsMap.set(c.lineNumber, existing);
+    }
+  }
+
+  return (
+    <div className="flex-1 overflow-auto">
+      <div className="sticky top-0 bg-gray-100 border-b px-4 py-2 font-mono text-xs text-gray-600 z-10">
+        {filePath}
+      </div>
+      <div className="font-mono text-xs">
+        {diffLines.map((line, i) => {
+          const lineNum = line.type === "remove" ? line.oldLineNumber : line.newLineNumber;
+          const lineFindings = lineNum ? findingsMap.get(lineNum) : undefined;
+          const lineComments = lineNum ? commentsMap.get(lineNum) : undefined;
+          const isCommentTarget = lineNum !== null && commentLine === lineNum;
+
+          // Pick the highlighted HTML for this line
+          let highlightedHtml: string | undefined;
+          if (line.type === "remove" && line.oldLineNumber !== null) {
+            highlightedHtml = oldHighlighted[line.oldLineNumber - 1];
+          } else if (line.newLineNumber !== null) {
+            highlightedHtml = newHighlighted[line.newLineNumber - 1];
+          }
+
+          return (
+            <div key={i}>
+              {/* Diff line */}
+              <div
+                className={`flex ${
+                  line.type === "add"
+                    ? "bg-green-50"
+                    : line.type === "remove"
+                      ? "bg-red-50"
+                      : "hover:bg-gray-50"
+                }`}
+              >
+                {/* Old line number gutter */}
+                <button
+                  className="w-12 text-right pr-2 text-gray-400 select-none border-r border-gray-200 hover:bg-blue-100 hover:text-blue-600 shrink-0"
+                  onClick={() => lineNum && setCommentLine(commentLine === lineNum ? null : lineNum)}
+                  title={t("review.addComment")}
+                >
+                  {line.oldLineNumber || ""}
+                </button>
+                {/* New line number gutter */}
+                <button
+                  className="w-12 text-right pr-2 text-gray-400 select-none border-r border-gray-200 hover:bg-blue-100 hover:text-blue-600 shrink-0"
+                  onClick={() => lineNum && setCommentLine(commentLine === lineNum ? null : lineNum)}
+                  title={t("review.addComment")}
+                >
+                  {line.newLineNumber || ""}
+                </button>
+                {/* +/- indicator */}
+                <span className={`w-5 text-center select-none shrink-0 ${
+                  line.type === "add" ? "text-green-600" : line.type === "remove" ? "text-red-600" : "text-gray-300"
+                }`}>
+                  {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
+                </span>
+                {/* Content with syntax highlighting */}
+                {highlightedHtml !== undefined ? (
+                  <span
+                    className="hljs px-2 whitespace-pre break-all flex-1"
+                    style={{ background: "transparent" }}
+                    dangerouslySetInnerHTML={{ __html: highlightedHtml || "&nbsp;" }}
+                  />
+                ) : (
+                  <span className="px-2 whitespace-pre break-all flex-1">
+                    {line.text || " "}
+                  </span>
+                )}
+              </div>
+
+              {/* Inline findings */}
+              {lineFindings?.map((finding) => (
+                <div
+                  key={finding.id}
+                  className={`mx-12 my-1 p-2 rounded border text-xs ${
+                    finding.resolved
+                      ? "bg-gray-50 border-gray-200 opacity-60"
+                      : severityColors[finding.severity] || severityColors.info
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={finding.severity} label={finding.severity} />
+                    <span className="font-semibold">{finding.title}</span>
+                  </div>
+                  {finding.content && (
+                    <p className="mt-1 text-gray-700">{finding.content}</p>
+                  )}
+                </div>
+              ))}
+
+              {/* Existing comments */}
+              {lineComments?.map((comment) => (
+                <div key={comment.id} className="mx-12 my-1 p-2 rounded border border-purple-200 bg-purple-50 text-xs">
+                  <p className="text-gray-800">{comment.content}</p>
+                  {comment.aiResponse && (
+                    <div className="mt-1 p-1.5 bg-white rounded border border-purple-100">
+                      <span className="font-semibold text-purple-700">{t("review.aiSuggestion")}:</span>
+                      <p className="mt-0.5 text-gray-700 whitespace-pre-wrap">{comment.aiResponse}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Inline comment input */}
+              {isCommentTarget && lineNum && (
+                <InlineComment
+                  reviewId={reviewId}
+                  filePath={filePath}
+                  lineNumber={lineNum}
+                  onClose={() => setCommentLine(null)}
+                  onSubmitted={onCommentAdded}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

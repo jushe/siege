@@ -268,6 +268,40 @@ export const reviewItems = sqliteTable("review_items", {
     .notNull()
     .default("info"),
   resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
+  filePath: text("file_path"),
+  lineNumber: integer("line_number"),
+});
+
+export const fileSnapshots = sqliteTable("file_snapshots", {
+  id: text("id").primaryKey(),
+  scheduleItemId: text("schedule_item_id")
+    .notNull()
+    .references(() => scheduleItems.id, { onDelete: "cascade" }),
+  filePath: text("file_path").notNull(),
+  contentBefore: text("content_before").default(""),
+  contentAfter: text("content_after").default(""),
+  createdAt: text("created_at")
+    .default(sql`(datetime('now'))`)
+    .notNull(),
+});
+
+export const reviewComments = sqliteTable("review_comments", {
+  id: text("id").primaryKey(),
+  reviewId: text("review_id")
+    .notNull()
+    .references(() => reviews.id, { onDelete: "cascade" }),
+  filePath: text("file_path").notNull(),
+  lineNumber: integer("line_number").notNull(),
+  content: text("content").notNull(),
+  aiResponse: text("ai_response").default(""),
+  status: text("status", {
+    enum: ["pending", "applied", "rejected"],
+  })
+    .notNull()
+    .default("pending"),
+  createdAt: text("created_at")
+    .default(sql`(datetime('now'))`)
+    .notNull(),
 });
 
 export const aiTasks = sqliteTable("ai_tasks", {

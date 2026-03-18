@@ -6,6 +6,26 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { useGlobalLoading } from "@/components/ui/global-loading";
+import { computeDiffStats } from "@/lib/diff";
+import { FileSidebar } from "./file-sidebar";
+import { DiffViewer } from "./diff-viewer";
+
+interface ReviewComment {
+  id: string;
+  reviewId: string;
+  filePath: string;
+  lineNumber: number;
+  content: string;
+  aiResponse: string | null;
+  status: string;
+  createdAt: string;
+}
+
+interface FileSnapshot {
+  filePath: string;
+  contentBefore: string;
+  contentAfter: string;
+}
 
 interface ReviewItem {
   id: string;
@@ -16,6 +36,8 @@ interface ReviewItem {
   content: string | null;
   severity: string;
   resolved: boolean;
+  filePath: string | null;
+  lineNumber: number | null;
 }
 
 interface Review {
@@ -26,6 +48,7 @@ interface Review {
   content: string | null;
   createdAt: string;
   items: ReviewItem[];
+  comments: ReviewComment[];
 }
 
 interface ReviewPanelProps {
@@ -52,6 +75,9 @@ export function ReviewPanel({
   const [reviews, setReviews] = useState<Review[]>([]);
   const [generating, setGenerating] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [snapshots, setSnapshots] = useState<FileSnapshot[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"diff" | "list">("diff");
 
   const fetchReviews = async () => {
     const res = await fetch(`/api/reviews?planId=${planId}&type=${type}`);
@@ -60,8 +86,35 @@ export function ReviewPanel({
     return data as Review[];
   };
 
+  const fetchSnapshots = async () => {
+    const res = await fetch(`/api/snapshots?planId=${planId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setSnapshots(data);
+    }
+  };
+
+  const fetchComments = async (reviewId: string) => {
+    const res = await fetch(`/api/review-comments?reviewId=${reviewId}`);
+    if (res.ok) {
+      const data = await res.json();
+      // Update the review's comments in state
+      setReviews((prev) =>
+        prev.map((r) => (r.id === reviewId ? { ...r, comments: data } : r))
+      );
+    }
+  };
+
   useEffect(() => {
-    fetchReviews();
+    fetchReviews().then((data) => {
+      const latest = data[data.length - 1];
+      if (latest) {
+        fetchComments(latest.id);
+      }
+    });
+    if (type === "implementation") {
+      fetchSnapshots();
+    }
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -232,11 +285,8 @@ export function ReviewPanel({
         </div>
       )}
 
-      {!generating && !latestReview ? (
-        <p className="text-gray-500 text-sm text-center py-4">
-          {t("review.noReview")}
-        </p>
-      ) : !generating && latestReview ? (
+      {/* Review status + summary (when review exists) */}
+      {!generating && latestReview && (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <StatusBadge
@@ -247,15 +297,133 @@ export function ReviewPanel({
               {new Date(latestReview.createdAt).toLocaleString()}
             </span>
           </div>
-
           {latestReview.content && (
             <div className="rounded-lg border bg-white p-4">
               <MarkdownRenderer content={latestReview.content} />
             </div>
           )}
+        </div>
+      )}
 
-          {latestReview.items.length > 0 && (
+      {/* Diff viewer — shows whenever there are git changes, regardless of review */}
+      {!generating && type === "implementation" && snapshots.length > 0 ? (
+        <div className="space-y-3">
+          {/* View mode toggle */}
+          {latestReview && (
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant={viewMode === "diff" ? "primary" : "secondary"}
+                onClick={() => setViewMode("diff")}
+              >
+                {t("review.viewDiff")}
+              </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "list" ? "primary" : "secondary"}
+                onClick={() => setViewMode("list")}
+              >
+                {t("review.viewFindings")}
+              </Button>
+            </div>
+          )}
+
+          {viewMode === "diff" || !latestReview ? (
+            <div className="flex border rounded-lg overflow-hidden" style={{ height: "600px" }}>
+              <FileSidebar
+                files={snapshots.map((snap) => {
+                  const stats = computeDiffStats(snap.contentBefore, snap.contentAfter);
+                  const findingCount = latestReview
+                    ? latestReview.items.filter((item) => item.filePath === snap.filePath).length
+                    : 0;
+                  return {
+                    filePath: snap.filePath,
+                    additions: stats.additions,
+                    deletions: stats.deletions,
+                    findingCount,
+                  };
+                })}
+                selectedFile={selectedFile}
+                onSelectFile={setSelectedFile}
+              />
+              {selectedFile ? (
+                (() => {
+                  const snap = snapshots.find((s) => s.filePath === selectedFile);
+                  if (!snap) return null;
+                  return (
+                    <DiffViewer
+                      filePath={snap.filePath}
+                      contentBefore={snap.contentBefore}
+                      contentAfter={snap.contentAfter}
+                      findings={latestReview?.items || []}
+                      comments={latestReview?.comments || []}
+                      reviewId={latestReview?.id || ""}
+                      onCommentAdded={() => latestReview && fetchComments(latestReview.id)}
+                    />
+                  );
+                })()
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
+                  {isZh ? "请选择一个文件查看差异" : "Select a file to view diff"}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Findings list view */
             <div className="space-y-2">
+              {latestReview.items.length > 0 ? (
+                <>
+                  <h5 className="text-sm font-medium">
+                    {t("review.findings")} ({latestReview.items.length})
+                  </h5>
+                  {latestReview.items.map((item) => (
+                    <div
+                      key={item.id}
+                      className={`rounded-lg border p-3 ${
+                        item.resolved
+                          ? "bg-gray-50 border-gray-200 opacity-60"
+                          : severityColors[item.severity] || severityColors.info
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={item.severity} label={item.severity} />
+                          <span className="font-medium text-sm">{item.title}</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleResolve(item.id, !item.resolved)}
+                            className={`text-xs px-2 py-1 rounded ${
+                              item.resolved
+                                ? "bg-gray-200 text-gray-600"
+                                : "bg-white/50 text-gray-700 hover:bg-white"
+                            }`}
+                          >
+                            {item.resolved ? t("review.resolved") : t("review.resolve")}
+                          </button>
+                        </div>
+                      </div>
+                      {item.content && (
+                        <div className="mt-2 text-sm">
+                          <MarkdownRenderer content={item.content} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              ) : (
+                <p className="text-gray-500 text-sm text-center py-4">
+                  {t("review.noReview")}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      ) : !generating && type === "scheme" && latestReview ? (
+        /* Scheme review: flat list */
+        <div className="space-y-2">
+          {latestReview.items.length > 0 && (
+            <>
               <h5 className="text-sm font-medium">
                 {t("review.findings")} ({latestReview.items.length})
               </h5>
@@ -304,9 +472,13 @@ export function ReviewPanel({
                   )}
                 </div>
               ))}
-            </div>
+            </>
           )}
         </div>
+      ) : !generating && !latestReview && snapshots.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-4">
+          {t("review.noReview")}
+        </p>
       ) : null}
     </div>
   );

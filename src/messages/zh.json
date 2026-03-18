@@ -103,7 +103,20 @@
       "in_progress": "审查中",
       "approved": "已通过",
       "changes_requested": "需修改"
-    }
+    },
+    "changedFiles": "变更文件",
+    "additions": "新增",
+    "deletions": "删除",
+    "noChanges": "未发现文件变更",
+    "addComment": "添加评论",
+    "submitComment": "提交",
+    "commentPlaceholder": "描述问题或建议修改...",
+    "applyFix": "应用修复",
+    "aiSuggestion": "AI 建议",
+    "fixApplied": "修复已应用",
+    "noSnapshots": "暂无文件快照，请先执行任务。",
+    "viewDiff": "查看差异",
+    "viewFindings": "发现列表"
   },
   "folder": {
     "create": "新建文件夹",
