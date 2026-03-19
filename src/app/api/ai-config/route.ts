@@ -82,7 +82,7 @@ function getProviderStatus(provider: ProviderName): ProviderStatus {
   };
 }
 
-function checkClaudeLogin(): { loggedIn: boolean; installed: boolean; email?: string } {
+function checkClaudeLogin(): { loggedIn: boolean; installed: boolean; email?: string; subscriptionType?: string } {
   try {
     execSync("which claude", { encoding: "utf-8", timeout: 3000 });
   } catch {
@@ -93,16 +93,15 @@ function checkClaudeLogin(): { loggedIn: boolean; installed: boolean; email?: st
       encoding: "utf-8",
       timeout: 5000,
     });
-    // Output is JSON: {"loggedIn": true, "email": "...", ...}
     try {
       const parsed = JSON.parse(output.trim());
       return {
         loggedIn: !!parsed.loggedIn,
         installed: true,
         email: parsed.email,
+        subscriptionType: parsed.subscriptionType,
       };
     } catch {
-      // Fallback: check for text patterns
       const loggedIn = output.includes('"loggedIn":true') || output.includes('"loggedIn": true');
       return { loggedIn, installed: true };
     }
@@ -118,7 +117,7 @@ export async function GET() {
     anthropic: getProviderStatus("anthropic"),
     openai: getProviderStatus("openai"),
     glm: getProviderStatus("glm"),
-    claude: { installed: claude.installed, loggedIn: claude.loggedIn, email: claude.email },
+    claude: { installed: claude.installed, loggedIn: claude.loggedIn, email: claude.email, subscriptionType: claude.subscriptionType },
   };
   return NextResponse.json(status);
 }

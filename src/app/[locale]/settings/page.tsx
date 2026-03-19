@@ -131,6 +131,43 @@ export default function SettingsPage({
           {isZh ? "AI 服务配置" : "AI Provider Configuration"}
         </h2>
 
+        {/* Claude Code Login — for ACP engine */}
+        <div className="rounded-lg border bg-white p-4 mb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm">Claude Code</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">ACP</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {aiConfig?.claude?.loggedIn ? (
+                <>
+                  <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                    ✓ {aiConfig.claude.email || (isZh ? "已登录" : "Logged in")}
+                  </span>
+                  {(aiConfig.claude as Record<string, unknown>)?.subscriptionType && (
+                    <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
+                      {String((aiConfig.claude as Record<string, unknown>).subscriptionType)}
+                    </span>
+                  )}
+                </>
+              ) : aiConfig?.claude?.installed ? (
+                <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full">
+                  {isZh ? "未登录" : "Not logged in"}
+                </span>
+              ) : (
+                <span className="text-xs text-gray-400">
+                  {isZh ? "未安装" : "Not installed"}
+                </span>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            {isZh
+              ? "使用 Claude 订阅认证。任务排期中选择「Claude Code (ACP)」引擎即可使用。未登录请运行: claude login"
+              : "Uses your Claude subscription. Select 'Claude Code (ACP)' engine in task scheduler. To login: claude login"}
+          </p>
+        </div>
+
         <div className="space-y-3">
           {PROVIDERS.map((prov) => {
             const status = aiConfig?.[prov.id as keyof AiConfig] as ProviderStatus | undefined;
