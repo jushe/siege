@@ -27,20 +27,26 @@ function cleanSchemeContent(raw: string): string {
       if (/^#{1,3}\s/.test(line)) {
         foundSchemeStart = true;
       } else {
-        // Skip reasoning lines like "Let me explore...", "Now let me read..."
         continue;
       }
     }
     cleaned.push(line);
   }
 
-  // If no heading was found, return original content (better than empty)
-  return cleaned.length > 0 ? cleaned.join("\n").trim() : raw.trim();
+  if (cleaned.length === 0) {
+    // No markdown heading found — AI only output reasoning, no actual scheme.
+    // Return empty so caller knows generation failed.
+    return "";
+  }
+
+  return cleaned.join("\n").trim();
 }
 
-function saveScheme(planId: string, content: string, planStatus: string) {
-  const db = getDb();
+function saveScheme(planId: string, content: string, planStatus: string): boolean {
   const cleanedContent = cleanSchemeContent(content);
+  if (!cleanedContent) return false;
+
+  const db = getDb();
   db.insert(schemes).values({
     id: crypto.randomUUID(), planId,
     title: "Generated Scheme", content: cleanedContent, sourceType: "local_analysis",
@@ -51,6 +57,7 @@ function saveScheme(planId: string, content: string, planStatus: string) {
       .set({ status: "reviewing", updatedAt: new Date().toISOString() })
       .where(eq(plans.id, planId)).run();
   }
+  return true;
 }
 
 function buildPrompt(project: { name: string; targetRepoPath: string }, plan: { name: string; description: string | null }) {
@@ -220,7 +227,10 @@ export async function POST(req: NextRequest) {
           });
 
           if (fullText.trim()) {
-            saveScheme(planId, fullText.trim(), plan.status);
+            const saved = saveScheme(planId, fullText.trim(), plan.status);
+            if (!saved) {
+              controller.enqueue(encoder.encode("\n\n---\n\n**Error: AI only explored the codebase but did not generate a scheme. Please try again.**\n"));
+            }
           }
           controller.close();
         } catch (err) {
@@ -247,7 +257,7 @@ export async function POST(req: NextRequest) {
           model: configuredModel,
           prompt,
           tools,
-          stopWhen: stepCountIs(10),
+          stopWhen: stepCountIs(20),
         });
 
         for await (const part of result.fullStream) {
@@ -261,7 +271,10 @@ export async function POST(req: NextRequest) {
         }
 
         if (fullText.trim()) {
-          saveScheme(planId, fullText.trim(), plan.status);
+          const saved = saveScheme(planId, fullText.trim(), plan.status);
+          if (!saved) {
+            controller.enqueue(encoder.encode("\n\n---\n\n**Error: AI only explored the codebase but did not generate a scheme. Please try again.**\n"));
+          }
         }
         controller.close();
       } catch (err) {
