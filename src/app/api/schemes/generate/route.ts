@@ -12,11 +12,38 @@ import { parseJsonBody } from "@/lib/utils";
 import fs from "fs";
 import path from "path";
 
+function cleanSchemeContent(raw: string): string {
+  const lines = raw.split("\n");
+  const cleaned: string[] = [];
+  let foundSchemeStart = false;
+
+  for (const line of lines) {
+    // Skip tool call markers
+    if (/^>\s*\*?\*?Tool:/.test(line)) continue;
+    if (/^>\s*Tool:/.test(line)) continue;
+    // Skip AI reasoning lines before the actual scheme starts
+    if (!foundSchemeStart) {
+      // Scheme typically starts with a markdown heading
+      if (/^#{1,3}\s/.test(line)) {
+        foundSchemeStart = true;
+      } else {
+        // Skip reasoning lines like "Let me explore...", "Now let me read..."
+        continue;
+      }
+    }
+    cleaned.push(line);
+  }
+
+  // If no heading was found, return original content (better than empty)
+  return cleaned.length > 0 ? cleaned.join("\n").trim() : raw.trim();
+}
+
 function saveScheme(planId: string, content: string, planStatus: string) {
   const db = getDb();
+  const cleanedContent = cleanSchemeContent(content);
   db.insert(schemes).values({
     id: crypto.randomUUID(), planId,
-    title: "Generated Scheme", content, sourceType: "local_analysis",
+    title: "Generated Scheme", content: cleanedContent, sourceType: "local_analysis",
   }).run();
 
   if (planStatus === "draft") {
