@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 import { appSettings } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { createModel, type Provider, type ProviderConfig } from "./provider";
+import { createModel, SUPPORTED_PROVIDERS, type Provider, type ProviderConfig } from "./provider";
 
 function getSetting(key: string): string | undefined {
   const db = getDb();
@@ -35,9 +35,26 @@ export function hasApiKey(provider?: Provider): boolean {
  * Get the configured model for a provider, respecting custom base URLs
  * and API keys stored in settings or env vars.
  */
+/**
+ * Returns true if default provider is "acp" (not an SDK provider).
+ */
+export function isAcpDefault(): boolean {
+  return getSetting("default_provider") === "acp";
+}
+
 export function getConfiguredModel(provider?: Provider, model?: string) {
-  const resolvedProvider =
+  let resolvedProvider =
     provider || (getSetting("default_provider") as Provider) || "anthropic";
+
+  // "acp" is not an SDK provider — fallback to first configured SDK provider
+  if (resolvedProvider === ("acp" as string)) {
+    const fallback = SUPPORTED_PROVIDERS.find((p) => {
+      const key = process.env[ENV_KEY_MAP[p]] || getSetting(`${p}_api_key`);
+      return !!key;
+    });
+    resolvedProvider = fallback || "anthropic";
+  }
+
   const resolvedModel = model || getSetting(`default_model_${resolvedProvider}`) || getSetting("default_model") || undefined;
 
   const config: ProviderConfig = {};
