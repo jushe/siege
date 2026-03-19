@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { TimeAgo } from "@/components/ui/time-ago";
-import { computeDiff } from "@/lib/diff";
+import { VersionTimeline } from "./version-timeline";
+import { VersionDiffPanel } from "./version-diff-panel";
 
 interface Version {
   id: string;
@@ -31,149 +31,92 @@ export function SchemeVersions({
   onClose,
   onRestore,
 }: SchemeVersionsProps) {
-  const t = useTranslations();
+  const t = useTranslations("scheme.versions");
+  const tc = useTranslations("common");
   const [versions, setVersions] = useState<Version[]>([]);
-  const [selectedA, setSelectedA] = useState<number | null>(null);
-  const [selectedB, setSelectedB] = useState<number | null>(null);
-  const [diffResult, setDiffResult] = useState<
-    Array<{ type: "same" | "add" | "remove"; text: string }>
-  >([]);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
 
   useEffect(() => {
     if (open) {
       fetch(`/api/schemes/${schemeId}/versions`)
         .then((r) => r.json())
-        .then((data) => {
+        .then((data: Version[]) => {
           setVersions(data);
-          if (data.length >= 1) {
-            setSelectedA(data[data.length - 1].version);
-            setSelectedB(null); // null = current
+          if (data.length > 0) {
+            setSelectedVersion(data[0].version);
           }
         })
         .catch(() => {});
     }
   }, [open, schemeId]);
 
-  useEffect(() => {
-    if (selectedA === null) return;
-
-    const contentA =
-      versions.find((v) => v.version === selectedA)?.content || "";
-    const contentB =
-      selectedB === null
-        ? currentContent
-        : versions.find((v) => v.version === selectedB)?.content || "";
-
-    setDiffResult(computeDiff(contentA, contentB));
-  }, [selectedA, selectedB, versions, currentContent]);
-
-  const isZh = t("common.back") === "返回";
+  const selected = versions.find((v) => v.version === selectedVersion);
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title={isZh ? "版本历史" : "Version History"}
+      title={t("title")}
+      maxWidth="max-w-4xl"
     >
-      <div className="space-y-4">
-        {versions.length === 0 ? (
-          <p className="text-gray-500 text-sm text-center py-4">
-            {isZh ? "暂无历史版本" : "No versions yet"}
-          </p>
-        ) : (
-          <>
-            {/* Version selector */}
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  {isZh ? "对比基准" : "Base"}
-                </label>
-                <select
-                  value={selectedA ?? ""}
-                  onChange={(e) => setSelectedA(Number(e.target.value))}
-                  className="w-full border rounded px-2 py-1 text-sm"
-                >
-                  {versions.map((v) => (
-                    <option key={v.id} value={v.version}>
-                      v{v.version} — {v.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-500 mb-1">
-                  {isZh ? "对比目标" : "Compare"}
-                </label>
-                <select
-                  value={selectedB ?? "current"}
-                  onChange={(e) =>
-                    setSelectedB(
-                      e.target.value === "current"
-                        ? null
-                        : Number(e.target.value)
-                    )
-                  }
-                  className="w-full border rounded px-2 py-1 text-sm"
-                >
-                  <option value="current">
-                    {isZh ? "当前版本" : "Current"}
-                  </option>
-                  {versions.map((v) => (
-                    <option key={v.id} value={v.version}>
-                      v{v.version} — {v.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
+      {versions.length === 0 ? (
+        <p className="text-gray-500 text-sm text-center py-12">
+          {t("noVersions")}
+        </p>
+      ) : (
+        <div className="flex gap-0 -mx-6 -mb-6 min-h-[420px]">
+          {/* Left: Timeline + Restore */}
+          <div className="w-56 shrink-0 border-r bg-gray-50 rounded-bl-lg flex flex-col">
+            <div className="flex-1 overflow-y-auto p-3">
+              <VersionTimeline
+                versions={versions}
+                selectedVersion={selectedVersion}
+                onSelect={setSelectedVersion}
+              />
             </div>
-
-            {/* Diff view */}
-            <div className="max-h-80 overflow-y-auto border rounded bg-gray-50 font-mono text-xs">
-              {diffResult.map((line, i) => (
-                <div
-                  key={i}
-                  className={`px-3 py-0.5 whitespace-pre-wrap ${
-                    line.type === "add"
-                      ? "bg-green-100 text-green-800"
-                      : line.type === "remove"
-                        ? "bg-red-100 text-red-800 line-through"
-                        : ""
-                  }`}
-                >
-                  <span className="inline-block w-4 text-gray-400 mr-2 select-none">
-                    {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
-                  </span>
-                  {line.text || " "}
-                </div>
-              ))}
-            </div>
-
-            {/* Restore button */}
-            {selectedA !== null && (
-              <div className="flex justify-end gap-2">
-                <Button variant="secondary" onClick={onClose}>
-                  {t("common.cancel")}
-                </Button>
+            {selected && (
+              <div className="p-3 border-t space-y-2">
                 <Button
+                  className="w-full"
+                  size="sm"
                   onClick={() => {
-                    const version = versions.find(
-                      (v) => v.version === selectedA
-                    );
-                    if (version?.content) {
-                      onRestore(version.content);
+                    if (selected.content) {
+                      onRestore(selected.content);
                       onClose();
                     }
                   }}
                 >
-                  {isZh
-                    ? `恢复到 v${selectedA}`
-                    : `Restore to v${selectedA}`}
+                  {t("restoreTo", { version: selected.version })}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  size="sm"
+                  onClick={onClose}
+                >
+                  {tc("cancel")}
                 </Button>
               </div>
             )}
-          </>
-        )}
-      </div>
+          </div>
+
+          {/* Right: Diff panel */}
+          <div className="flex-1 p-4 overflow-hidden">
+            {selected ? (
+              <VersionDiffPanel
+                oldContent={selected.content || ""}
+                newContent={currentContent}
+                oldLabel={`v${selected.version}`}
+                newLabel={t("current")}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                {t("diffWith")}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </Dialog>
   );
 }

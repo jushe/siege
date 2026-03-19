@@ -79,7 +79,17 @@
     "confirmSchemes": "Confirm Schemes",
     "revokeConfirm": "Revoke Confirmation",
     "confirmed": "Schemes confirmed. Revoke to edit.",
-    "deleteConfirm": "Are you sure you want to delete this scheme?"
+    "deleteConfirm": "Are you sure you want to delete this scheme?",
+    "versions": {
+      "title": "Version History",
+      "noVersions": "No versions yet",
+      "current": "Current",
+      "restoreTo": "Restore to v{version}",
+      "diffWith": "Diff with current version",
+      "noDiff": "Identical to current version",
+      "additions": "+{count}",
+      "deletions": "-{count}"
+    }
   },
   "generate": {
     "provider": "AI Provider",
