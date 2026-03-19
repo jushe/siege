@@ -307,33 +307,130 @@ export default function SettingsPage({
       </section>
 
       {/* Skills */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">
-          {isZh ? "技能" : "Skills"} ({skills.length})
-        </h2>
-        {Object.entries(skillsBySource).map(([source, items]) => (
-          <div key={source} className="mb-4">
-            <h3 className="text-sm font-medium text-gray-500 mb-2">
-              {source} ({items.length})
-            </h3>
-            <div className="rounded-lg border bg-white divide-y">
-              {items.map((skill) => (
-                <div key={skill.name} className="px-4 py-3">
+      <SkillsSection
+        skills={skills}
+        skillsBySource={skillsBySource}
+        isZh={isZh}
+        onSkillsChange={() => fetch("/api/skills").then((r) => r.json()).then(setSkills)}
+      />
+    </div>
+  );
+}
+
+function SkillsSection({
+  skills,
+  skillsBySource,
+  isZh,
+  onSkillsChange,
+}: {
+  skills: SkillSummary[];
+  skillsBySource: Record<string, SkillSummary[]>;
+  isZh: boolean;
+  onSkillsChange: () => void;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!prompt.trim() || generating) return;
+    setGenerating(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/skills/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setResult(isZh ? `已安装: ${data.name}` : `Installed: ${data.name}`);
+        setPrompt("");
+        onSkillsChange();
+      } else {
+        const err = await res.json();
+        setResult(err.error || "Failed");
+      }
+    } catch {
+      setResult(isZh ? "生成失败" : "Generation failed");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleDelete = async (name: string) => {
+    await fetch(`/api/skills?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+    onSkillsChange();
+  };
+
+  return (
+    <section className="mb-8">
+      <h2 className="text-xl font-semibold mb-4">
+        {isZh ? "技能" : "Skills"} ({skills.length})
+      </h2>
+
+      {/* Generate skill from prompt */}
+      <div className="rounded-lg border bg-white p-4 mb-4">
+        <h3 className="text-sm font-medium text-gray-700 mb-2">
+          {isZh ? "通过描述安装技能" : "Install Skill from Prompt"}
+        </h3>
+        <div className="flex gap-2">
+          <textarea
+            className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+            rows={2}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder={isZh
+              ? "描述你需要的技能，例如：Go 语言最佳实践和代码规范..."
+              : "Describe the skill you need, e.g.: Go best practices and coding standards..."}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleGenerate())}
+          />
+          <Button
+            onClick={handleGenerate}
+            disabled={generating || !prompt.trim()}
+            className="self-end"
+          >
+            {generating ? (isZh ? "生成中..." : "Generating...") : (isZh ? "安装" : "Install")}
+          </Button>
+        </div>
+        {result && (
+          <p className={`text-xs mt-2 ${result.startsWith("Installed") || result.startsWith("已安装") ? "text-green-600" : "text-red-500"}`}>
+            {result}
+          </p>
+        )}
+      </div>
+
+      {/* Installed skills */}
+      {Object.entries(skillsBySource).map(([source, items]) => (
+        <div key={source} className="mb-4">
+          <h3 className="text-sm font-medium text-gray-500 mb-2">
+            {source} ({items.length})
+          </h3>
+          <div className="rounded-lg border bg-white divide-y">
+            {items.map((skill) => (
+              <div key={skill.name} className="px-4 py-3 flex items-center justify-between">
+                <div>
                   <span className="font-mono text-sm">{skill.name}</span>
                   {skill.description && (
                     <p className="text-xs text-gray-500 mt-0.5">{skill.description}</p>
                   )}
                 </div>
-              ))}
-            </div>
+                <button
+                  onClick={() => handleDelete(skill.name)}
+                  className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded"
+                >
+                  {isZh ? "删除" : "Delete"}
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-        {skills.length === 0 && (
-          <p className="text-gray-500 text-sm">
-            {isZh ? "未找到技能（~/.claude/skills/）" : "No skills found in ~/.claude/skills/"}
-          </p>
-        )}
-      </section>
-    </div>
+        </div>
+      ))}
+      {skills.length === 0 && (
+        <p className="text-gray-500 text-sm">
+          {isZh ? "未找到技能（~/.claude/skills/）" : "No skills found in ~/.claude/skills/"}
+        </p>
+      )}
+    </section>
   );
 }
