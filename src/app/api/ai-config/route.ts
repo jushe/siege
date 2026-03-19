@@ -168,3 +168,20 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(getProviderStatus(provider));
 }
+
+// DELETE: clear a provider's configuration
+export async function DELETE(req: NextRequest) {
+  const provider = req.nextUrl.searchParams.get("provider") as ProviderName | null;
+  if (!provider || !ENV_KEYS[provider]) {
+    return NextResponse.json({ error: "valid provider is required" }, { status: 400 });
+  }
+
+  const db = getDb();
+  db.delete(appSettings).where(eq(appSettings.key, `${provider}_api_key`)).run();
+  db.delete(appSettings).where(eq(appSettings.key, `${provider}_base_url`)).run();
+
+  // Clear from process.env
+  delete process.env[ENV_KEYS[provider]];
+
+  return NextResponse.json(getProviderStatus(provider));
+}

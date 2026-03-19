@@ -180,6 +180,29 @@ export default function SettingsPage({
                         {isZh ? "未配置" : "Not configured"}
                       </span>
                     )}
+                    {status?.configured && !isEditing && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={async () => {
+                          await fetch(`/api/ai-config?provider=${prov.id}`, { method: "DELETE" });
+                          // Also clear model setting
+                          const newSettings = { ...settings };
+                          delete newSettings[`default_model_${prov.id}`];
+                          setSettings(newSettings);
+                          await fetch("/api/settings", {
+                            method: "PUT",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ [`default_model_${prov.id}`]: "" }),
+                          });
+                          const res = await fetch("/api/ai-config");
+                          setAiConfig(await res.json());
+                        }}
+                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                      >
+                        {isZh ? "清除" : "Clear"}
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
