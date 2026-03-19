@@ -325,12 +325,12 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
   let fullLog = "";
 
   // ACP engine: use Agent Client Protocol with session reuse per project
-  if (engine === "acp") {
+  if (engine === "acp" || engine === "codex-acp") {
     const existingSessionId = project.sessionId; // Reuse project-level session
 
     const responseStream = new ReadableStream({
       async start(controller) {
-        const acpClient = new AcpClient(cwd);
+        const acpClient = new AcpClient(cwd, engine === "codex-acp" ? "codex" : "claude");
         try {
           controller.enqueue(encoder.encode("Connecting to ACP agent...\n"));
           await acpClient.start();

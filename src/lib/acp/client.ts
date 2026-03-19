@@ -44,14 +44,19 @@ export class AcpClient {
   private onUpdate: UpdateCallback | null = null;
   private onWrite: WriteCallback | null = null;
   private repoPath: string;
+  private agentType: "claude" | "codex";
   private terminals = new Map<string, { output: string; exitCode: number | null }>();
 
-  constructor(repoPath: string) {
+  constructor(repoPath: string, agentType: "claude" | "codex" = "claude") {
     this.repoPath = repoPath;
+    this.agentType = agentType;
   }
 
   async start(): Promise<void> {
-    this.proc = spawn("npx", ["-y", "@zed-industries/claude-agent-acp@latest"], {
+    const agentPkg = this.agentType === "codex"
+      ? "@zed-industries/codex-acp@latest"
+      : "@zed-industries/claude-agent-acp@latest";
+    this.proc = spawn("npx", ["-y", agentPkg], {
       stdio: ["pipe", "pipe", "pipe"],
       env: { ...process.env },
     });

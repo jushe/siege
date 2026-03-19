@@ -489,6 +489,7 @@ export function ScheduleView({
                           >
                             <option value="claude-code">Claude Code (SDK)</option>
                             <option value="acp">Claude Code (ACP)</option>
+                            <option value="codex-acp">Codex (ACP)</option>
                           </select>
                         </div>
                         <div className="flex gap-2 justify-end">
@@ -513,6 +514,9 @@ export function ScheduleView({
                             </span>
                             {item.engine === "acp" && (
                               <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">ACP</span>
+                            )}
+                            {item.engine === "codex-acp" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-medium">Codex</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
