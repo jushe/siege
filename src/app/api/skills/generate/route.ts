@@ -23,12 +23,21 @@ Then provide the skill content as markdown. The content should be instructions, 
 Output ONLY the file content. No explanation, no code fences wrapping the whole thing.`;
 
 function saveSkillFile(rawText: string): { name: string; fileName: string; filePath: string; text: string } {
-  // Strip markdown code fences if AI wrapped the output
   let text = rawText.trim();
-  const fenceMatch = text.match(/^```(?:markdown|md)?\n([\s\S]*?)```\s*$/);
+
+  // Strip markdown code fences if AI wrapped the output
+  const fenceMatch = text.match(/```(?:markdown|md)?\n([\s\S]*?)```/);
   if (fenceMatch) text = fenceMatch[1].trim();
 
-  const nameMatch = text.match(/---\n[\s\S]*?name:\s*(.+)\n[\s\S]*?---/);
+  // Extract the actual skill content: find the frontmatter block and everything after it
+  // This handles cases where AI outputs chat text before the actual skill
+  const frontmatterStart = text.indexOf("---\n");
+  if (frontmatterStart > 0) {
+    // There's text before the frontmatter — strip it
+    text = text.slice(frontmatterStart);
+  }
+
+  const nameMatch = text.match(/^---\n[\s\S]*?name:\s*(.+)\n[\s\S]*?---/);
   const skillName = nameMatch?.[1]?.trim().replace(/['"]/g, "") || `skill-${Date.now()}`;
   const fileName = `${skillName.replace(/[^a-zA-Z0-9-_]/g, "-")}.md`;
 
@@ -60,22 +69,17 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   let fullText = "";
 
-  // ACP-friendly prompt: explicitly tell Claude not to use tools
-  const acpPrompt = `IMPORTANT: Do NOT use any tools. Do NOT read files, fetch URLs, or run commands. Just write text output directly.
+  const acpPrompt = `Generate a skill file (SKILL.md) about: ${prompt}
 
-I need you to write a markdown skill document from scratch based on your own knowledge. The document should have YAML frontmatter at the top.
-
-Format:
+The file must start with YAML frontmatter:
 ---
 name: <short-kebab-case-name>
 description: <one-line description>
 ---
 
-<markdown content with headings, rules, patterns, code examples>
+Then write the skill content as markdown with headings, rules, best practices, and code examples.
 
-Topic to cover: ${prompt}
-
-Write the complete document now. Start directly with --- on the first line. No explanation before or after.`;
+Output the complete file content starting with the --- frontmatter block.`;
 
   const responseStream = new ReadableStream({
     async start(controller) {
