@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useGlobalLoading } from "@/components/ui/global-loading";
 
 interface ProviderStatus {
   configured: boolean;
@@ -372,13 +373,13 @@ function SkillsSection({
   const [prompt, setPrompt] = useState("");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<string | null>(null);
-  const [streamContent, setStreamContent] = useState("");
+  const { startLoading, updateContent, stopLoading } = useGlobalLoading();
 
   const handleGenerate = async () => {
     if (!prompt.trim() || generating) return;
     setGenerating(true);
     setResult(null);
-    setStreamContent("");
+    startLoading(isZh ? "AI 正在生成技能..." : "Generating skill...");
     try {
       const res = await fetch("/api/skills/generate", {
         method: "POST",
@@ -393,27 +394,31 @@ function SkillsSection({
           const { done, value } = await reader.read();
           if (done) break;
           content += decoder.decode(value, { stream: true });
-          // Check for result markers
-          if (content.includes("__SKILL_INSTALLED__:")) {
-            const name = content.split("__SKILL_INSTALLED__:")[1]?.trim();
-            setResult(isZh ? `已安装: ${name}` : `Installed: ${name}`);
-            setPrompt("");
-            onSkillsChange();
-          } else if (content.includes("__SKILL_ERROR__:")) {
-            const err = content.split("__SKILL_ERROR__:")[1]?.trim();
-            setResult(err || (isZh ? "生成失败" : "Generation failed"));
-          } else {
-            setStreamContent(content);
-          }
+          updateContent(content);
+        }
+        // Check result markers
+        if (content.includes("__SKILL_INSTALLED__:")) {
+          const name = content.split("__SKILL_INSTALLED__:")[1]?.trim();
+          setResult(isZh ? `已安装: ${name}` : `Installed: ${name}`);
+          setPrompt("");
+          onSkillsChange();
+          stopLoading(isZh ? `已安装: ${name}` : `Installed: ${name}`);
+        } else if (content.includes("__SKILL_ERROR__:")) {
+          const err = content.split("__SKILL_ERROR__:")[1]?.trim();
+          setResult(err || (isZh ? "生成失败" : "Generation failed"));
+          stopLoading(isZh ? "生成失败" : "Failed");
+        } else {
+          stopLoading(isZh ? "完成" : "Done");
         }
       } else {
         setResult(isZh ? "生成失败" : "Generation failed");
+        stopLoading(isZh ? "生成失败" : "Failed");
       }
     } catch {
       setResult(isZh ? "生成失败" : "Generation failed");
+      stopLoading(isZh ? "生成失败" : "Failed");
     } finally {
       setGenerating(false);
-      setStreamContent("");
     }
   };
 
@@ -455,12 +460,6 @@ function SkillsSection({
             {generating ? (isZh ? "生成中..." : "Generating...") : (isZh ? "安装" : "Install")}
           </Button>
         </div>
-        {/* Streaming preview */}
-        {generating && streamContent && (
-          <div className="mt-2 max-h-40 overflow-y-auto rounded border bg-gray-50 p-3">
-            <pre className="text-xs text-gray-600 whitespace-pre-wrap font-mono">{streamContent}</pre>
-          </div>
-        )}
         {result && (
           <p className={`text-xs mt-2 ${result.startsWith("Installed") || result.startsWith("已安装") ? "text-green-600" : "text-red-500"}`}>
             {result}
