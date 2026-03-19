@@ -181,7 +181,14 @@ export function SchemeCard({
       </div>
 
       {extractHeadings(scheme.content || "").length > 1 ? (
-        <SchemeSections content={scheme.content || ""} />
+        <SchemeSections
+          content={scheme.content || ""}
+          schemeId={scheme.id}
+          readonly={readonly}
+          onContentUpdated={(newContent) => {
+            onUpdate(scheme.id, { title: scheme.title, content: newContent });
+          }}
+        />
       ) : (
         <MarkdownRenderer content={scheme.content || ""} />
       )}
