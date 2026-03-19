@@ -60,7 +60,7 @@ Siege 将 Claude Code / Codex 包装成一个**完整的开发生命周期管理
 <table>
   <tr>
     <td><img src="docs/screenshots/zh/03-project-list.png" alt="项目列表" /><br /><em>项目列表</em></td>
-    <td><img src="docs/screenshots/zh/05-scheme-detail.png" alt="技术方案" /><br /><em>AI 生成的技术方案</em></td>
+    <td><img src="docs/screenshots/zh/05-scheme-detail.png" alt="技术方案" /><br /><em>AI 生成的技术方案（手风琴分段展示）</em></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/09-schedule-gantt.png" alt="任务排期" /><br /><em>甘特图任务排期</em></td>

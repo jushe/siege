@@ -60,7 +60,7 @@ Describe   AI Gen    Gantt       Claude      Diff View   AI Gen
 <table>
   <tr>
     <td><img src="docs/screenshots/en/03-project-list.png" alt="Projects" /><br /><em>Project List</em></td>
-    <td><img src="docs/screenshots/en/05-scheme-detail.png" alt="Schemes" /><br /><em>AI-Generated Technical Schemes</em></td>
+    <td><img src="docs/screenshots/en/05-scheme-detail.png" alt="Schemes" /><br /><em>AI-Generated Schemes with Collapsible Sections</em></td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/09-schedule-gantt.png" alt="Schedule" /><br /><em>Task Schedule with Gantt Chart</em></td>
