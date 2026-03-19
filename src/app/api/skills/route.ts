@@ -5,11 +5,21 @@ import fs from "fs";
 export async function GET() {
   const skills = scanAllSkills();
 
-  const summary = skills.map((s) => ({
-    name: s.name,
-    source: s.source,
-    description: s.description,
-  }));
+  const summary = skills.map((s) => {
+    // Extract preview: content after frontmatter, first 200 chars
+    let preview = "";
+    const afterFrontmatter = s.content.replace(/^---\n[\s\S]*?\n---\n*/, "").trim();
+    if (afterFrontmatter) {
+      preview = afterFrontmatter.slice(0, 200);
+      if (afterFrontmatter.length > 200) preview += "...";
+    }
+    return {
+      name: s.name,
+      source: s.source,
+      description: s.description,
+      preview,
+    };
+  });
 
   return NextResponse.json(summary);
 }

@@ -24,6 +24,7 @@ interface SkillSummary {
   name: string;
   source: string;
   description: string;
+  preview: string;
 }
 
 const PROVIDERS = [
@@ -475,19 +476,24 @@ function SkillsSection({
           </h3>
           <div className="rounded-lg border bg-white divide-y">
             {items.map((skill) => (
-              <div key={skill.name} className="px-4 py-3 flex items-center justify-between">
-                <div>
-                  <span className="font-mono text-sm">{skill.name}</span>
-                  {skill.description && (
-                    <p className="text-xs text-gray-500 mt-0.5">{skill.description}</p>
-                  )}
+              <div key={skill.name} className="px-4 py-3">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-mono text-sm font-medium">{skill.name}</span>
+                    {skill.description && (
+                      <p className="text-xs text-gray-600 mt-0.5">{skill.description}</p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleDelete(skill.name)}
+                    className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded shrink-0 ml-2"
+                  >
+                    {isZh ? "删除" : "Delete"}
+                  </button>
                 </div>
-                <button
-                  onClick={() => handleDelete(skill.name)}
-                  className="text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded"
-                >
-                  {isZh ? "删除" : "Delete"}
-                </button>
+                {skill.preview && (
+                  <pre className="text-[11px] text-gray-400 mt-1.5 whitespace-pre-wrap line-clamp-3 font-mono leading-relaxed">{skill.preview}</pre>
+                )}
               </div>
             ))}
           </div>
