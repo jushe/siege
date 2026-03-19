@@ -15,6 +15,7 @@ import { scanAllSkills, getSkillContent } from "@/lib/skills/registry";
 import { parseJsonBody } from "@/lib/utils";
 import { LspClient } from "@/lib/lsp/client";
 import { getLanguageFromPath, getServerConfig, isServerAvailable } from "@/lib/lsp/servers";
+import { AcpClient } from "@/lib/acp/client";
 import fs from "fs";
 import path from "path";
 
@@ -319,11 +320,69 @@ Use the provided tools to read the codebase, write/edit files, and run commands.
 You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics) for precise type information, go-to-definition, finding references, and compiler diagnostics. Use them when you need to understand types, navigate definitions, or check for errors.`;
 
   const cwd = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
-  const configuredModel = getConfiguredModel();
-  const tools = { ...createProjectTools(cwd), ...createLspTools(cwd) };
-
+  const engine = item.engine || "claude-code";
   const encoder = new TextEncoder();
   let fullLog = "";
+
+  // ACP engine: use Agent Client Protocol
+  if (engine === "acp") {
+    const responseStream = new ReadableStream({
+      async start(controller) {
+        const acpClient = new AcpClient(cwd);
+        try {
+          controller.enqueue(encoder.encode("Connecting to ACP agent...\n"));
+          await acpClient.start();
+
+          const session = await acpClient.createSession();
+          controller.enqueue(encoder.encode(`Session: ${session.sessionId}\n\n`));
+          fullLog += `[ACP] Session: ${session.sessionId}\n`;
+
+          const result = await acpClient.prompt(session.sessionId, prompt, (type, text) => {
+            if (type === "text") {
+              fullLog += text;
+              controller.enqueue(encoder.encode(text));
+            } else if (type === "tool") {
+              fullLog += text;
+              controller.enqueue(encoder.encode(text));
+            } else if (type === "plan") {
+              const msg = `\n📋 Plan:\n${text}\n\n`;
+              fullLog += msg;
+              controller.enqueue(encoder.encode(msg));
+            }
+          });
+
+          fullLog += `\n[ACP] Stop: ${result.stopReason}, tokens: ${result.usage?.totalTokens || "?"}`;
+          controller.enqueue(encoder.encode(`\n\n---\nStop: ${result.stopReason}`));
+
+          db.update(scheduleItems)
+            .set({ status: "completed", progress: 100, executionLog: fullLog || "No output" })
+            .where(eq(scheduleItems.id, itemId))
+            .run();
+
+          await acpClient.stop();
+          controller.close();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          fullLog += `\nError: ${msg}`;
+          controller.enqueue(encoder.encode(`\nError: ${msg}`));
+          db.update(scheduleItems)
+            .set({ status: "failed", progress: 0, executionLog: fullLog || "Error" })
+            .where(eq(scheduleItems.id, itemId))
+            .run();
+          await acpClient.stop();
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(responseStream, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
+  // Default engine: Vercel AI SDK with tools
+  const configuredModel = getConfiguredModel();
+  const tools = { ...createProjectTools(cwd), ...createLspTools(cwd) };
 
   const responseStream = new ReadableStream({
     async start(controller) {
@@ -346,7 +405,6 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
           }
         }
 
-        // Save log and mark completed
         db.update(scheduleItems)
           .set({
             status: "completed",
