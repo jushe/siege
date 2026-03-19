@@ -319,6 +319,7 @@ export default function SettingsPage({
               onChange={(e) => setSettings((s) => ({ ...s, default_provider: e.target.value }))}
               className="w-full border rounded-md px-3 py-2 text-sm"
             >
+              <option value="acp">Claude Code (ACP)</option>
               <option value="anthropic">Anthropic (Claude)</option>
               <option value="openai">OpenAI (GPT)</option>
               <option value="glm">GLM (智谱)</option>
