@@ -38,7 +38,7 @@ export function hasApiKey(provider?: Provider): boolean {
 export function getConfiguredModel(provider?: Provider, model?: string) {
   const resolvedProvider =
     provider || (getSetting("default_provider") as Provider) || "anthropic";
-  const resolvedModel = model || getSetting("default_model") || undefined;
+  const resolvedModel = model || getSetting(`default_model_${resolvedProvider}`) || getSetting("default_model") || undefined;
 
   const config: ProviderConfig = {};
   const baseURL = getSetting(`${resolvedProvider}_base_url`);

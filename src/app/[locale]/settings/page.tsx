@@ -26,9 +26,24 @@ interface SkillSummary {
 }
 
 const PROVIDERS = [
-  { id: "anthropic", label: "Anthropic (Claude)", keyPlaceholder: "sk-ant-api03-..." },
-  { id: "openai", label: "OpenAI (GPT)", keyPlaceholder: "sk-..." },
-  { id: "glm", label: "GLM (智谱)", keyPlaceholder: "glm-api-key..." },
+  {
+    id: "anthropic",
+    label: "Anthropic (Claude)",
+    keyPlaceholder: "sk-ant-api03-...",
+    models: ["claude-sonnet-4-20250514", "claude-opus-4-20250514", "claude-haiku-4-20250414", "claude-3-5-sonnet-20241022"],
+  },
+  {
+    id: "openai",
+    label: "OpenAI (GPT)",
+    keyPlaceholder: "sk-...",
+    models: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "o1", "o1-mini", "o3-mini"],
+  },
+  {
+    id: "glm",
+    label: "GLM (智谱)",
+    keyPlaceholder: "glm-api-key...",
+    models: ["glm-4-plus", "glm-4", "glm-4-air", "glm-4-flash"],
+  },
 ] as const;
 
 export default function SettingsPage({
@@ -49,6 +64,7 @@ export default function SettingsPage({
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [editKey, setEditKey] = useState("");
   const [editUrl, setEditUrl] = useState("");
+  const [editModel, setEditModel] = useState("");
   const [savingProvider, setSavingProvider] = useState(false);
 
   useEffect(() => {
@@ -59,20 +75,32 @@ export default function SettingsPage({
 
   const saveProvider = async (providerId: string) => {
     setSavingProvider(true);
-    await fetch("/api/ai-config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        provider: providerId,
-        apiKey: editKey || undefined,
-        baseURL: editUrl || undefined,
-      }),
-    });
+    if (editKey || editUrl !== undefined) {
+      await fetch("/api/ai-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: providerId,
+          apiKey: editKey || undefined,
+          baseURL: editUrl || undefined,
+        }),
+      });
+    }
+    // Save model setting
+    if (editModel) {
+      await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [`default_model_${providerId}`]: editModel }),
+      });
+      setSettings((s) => ({ ...s, [`default_model_${providerId}`]: editModel }));
+    }
     const res = await fetch("/api/ai-config");
     setAiConfig(await res.json());
     setEditingProvider(null);
     setEditKey("");
     setEditUrl("");
+    setEditModel("");
     setSavingProvider(false);
   };
 
@@ -136,6 +164,11 @@ export default function SettingsPage({
                         <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
                           ✓ {status.masked || (status.baseURL ? "Proxy" : "OK")}
                         </span>
+                        {settings[`default_model_${prov.id}`] && (
+                          <span className="text-xs text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full font-mono">
+                            {settings[`default_model_${prov.id}`]}
+                          </span>
+                        )}
                         {status.baseURL && (
                           <span className="text-xs text-gray-400 font-mono">
                             {status.baseURL.slice(0, 30)}
@@ -157,6 +190,7 @@ export default function SettingsPage({
                           setEditingProvider(prov.id);
                           setEditKey("");
                           setEditUrl(status?.baseURL || "");
+                          setEditModel(settings[`default_model_${prov.id}`] || "");
                         }
                       }}
                     >
@@ -190,10 +224,33 @@ export default function SettingsPage({
                             : "https://api.openai.com/v1"
                       }
                     />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {isZh ? "模型" : "Model"}
+                      </label>
+                      <div className="flex gap-2">
+                        <select
+                          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          value={editModel}
+                          onChange={(e) => setEditModel(e.target.value)}
+                        >
+                          <option value="">{isZh ? "默认" : "Default"}</option>
+                          {prov.models.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <input
+                          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          value={editModel}
+                          onChange={(e) => setEditModel(e.target.value)}
+                          placeholder={isZh ? "或输入自定义模型名" : "Or enter custom model name"}
+                        />
+                      </div>
+                    </div>
                     <Button
                       size="sm"
                       onClick={() => saveProvider(prov.id)}
-                      disabled={savingProvider || (!editKey && !editUrl)}
+                      disabled={savingProvider || (!editKey && !editUrl && !editModel)}
                     >
                       {savingProvider ? t("common.loading") : t("common.save")}
                     </Button>

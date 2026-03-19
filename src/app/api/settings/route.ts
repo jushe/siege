@@ -15,8 +15,10 @@ export async function GET() {
 
 const ALLOWED_SETTINGS = new Set([
   "default_provider",
+  "default_model",
   "default_model_anthropic",
   "default_model_openai",
+  "default_model_glm",
   "archive_after_days",
   "cleanup_after_days",
 ]);
