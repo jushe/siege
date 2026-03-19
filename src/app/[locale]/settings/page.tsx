@@ -131,24 +131,6 @@ export default function SettingsPage({
           {isZh ? "AI 服务配置" : "AI Provider Configuration"}
         </h2>
 
-        {/* Claude Login Status */}
-        {aiConfig?.claude?.installed && (
-          <div className="rounded-lg border bg-white p-4 mb-3">
-            <div className="flex items-center justify-between">
-              <span className="font-medium text-sm">Claude Code Login</span>
-              {aiConfig.claude.loggedIn ? (
-                <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                  ✓ {aiConfig.claude.email || (isZh ? "已登录" : "Logged in")}
-                </span>
-              ) : (
-                <span className="text-xs text-gray-500">
-                  {isZh ? "未登录" : "Not logged in"}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
         <div className="space-y-3">
           {PROVIDERS.map((prov) => {
             const status = aiConfig?.[prov.id as keyof AiConfig] as ProviderStatus | undefined;
