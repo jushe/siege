@@ -106,6 +106,19 @@ export class AcpClient {
     return result;
   }
 
+  async resumeSession(sessionId: string): Promise<AcpSessionInfo> {
+    try {
+      const result = await this.request("session/load", {
+        sessionId,
+        cwd: this.repoPath,
+      }) as AcpSessionInfo;
+      return result;
+    } catch {
+      // Resume failed, create new session
+      return this.createSession();
+    }
+  }
+
   async prompt(sessionId: string, text: string, callback: UpdateCallback): Promise<AcpPromptResult> {
     this.onUpdate = callback;
     const result = await this.request("session/prompt", {

@@ -72,7 +72,7 @@ export function ScheduleView({
 
   // Edit state
   const [editingItem, setEditingItem] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", description: "", startDate: "", endDate: "" });
+  const [editForm, setEditForm] = useState({ title: "", description: "", startDate: "", endDate: "", engine: "claude-code" });
 
   // Add task state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -281,6 +281,7 @@ export function ScheduleView({
       description: item.description || "",
       startDate: toLocalDatetime(item.startDate),
       endDate: toLocalDatetime(item.endDate),
+      engine: item.engine || "claude-code",
     });
   };
 
@@ -294,6 +295,7 @@ export function ScheduleView({
         description: editForm.description,
         startDate: new Date(editForm.startDate).toISOString(),
         endDate: new Date(editForm.endDate).toISOString(),
+        engine: editForm.engine,
       }),
     });
     setEditingItem(null);
@@ -478,6 +480,17 @@ export function ScheduleView({
                             />
                           </label>
                         </div>
+                        <div>
+                          <span className="text-xs text-gray-500">{isZh ? "执行引擎" : "Engine"}</span>
+                          <select
+                            className="w-full border rounded px-2 py-1 text-sm"
+                            value={editForm.engine}
+                            onChange={(e) => setEditForm({ ...editForm, engine: e.target.value })}
+                          >
+                            <option value="claude-code">Claude Code (SDK)</option>
+                            <option value="acp">Claude Code (ACP)</option>
+                          </select>
+                        </div>
                         <div className="flex gap-2 justify-end">
                           <Button variant="secondary" size="sm" onClick={() => setEditingItem(null)}>
                             {t("common.cancel")}
@@ -498,6 +511,9 @@ export function ScheduleView({
                             <span className="text-xs text-gray-400 font-mono">
                               {formatDateTime(item.startDate)} → {formatDateTime(item.endDate)}
                             </span>
+                            {item.engine === "acp" && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">ACP</span>
+                            )}
                           </div>
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-gray-500">{item.progress}%</span>

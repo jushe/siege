@@ -324,8 +324,10 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
   const encoder = new TextEncoder();
   let fullLog = "";
 
-  // ACP engine: use Agent Client Protocol
+  // ACP engine: use Agent Client Protocol with session reuse per project
   if (engine === "acp") {
+    const existingSessionId = project.sessionId; // Reuse project-level session
+
     const responseStream = new ReadableStream({
       async start(controller) {
         const acpClient = new AcpClient(cwd);
@@ -333,7 +335,23 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
           controller.enqueue(encoder.encode("Connecting to ACP agent...\n"));
           await acpClient.start();
 
-          const session = await acpClient.createSession();
+          // Try to resume existing session, or create new one
+          let session;
+          if (existingSessionId) {
+            controller.enqueue(encoder.encode(`Resuming session ${existingSessionId.slice(0, 8)}...\n`));
+            session = await acpClient.resumeSession(existingSessionId);
+          } else {
+            session = await acpClient.createSession();
+          }
+
+          // Save session ID to project for future reuse
+          if (session.sessionId !== existingSessionId) {
+            db.update(projects)
+              .set({ sessionId: session.sessionId })
+              .where(eq(projects.id, project.id))
+              .run();
+          }
+
           controller.enqueue(encoder.encode(`Session: ${session.sessionId}\n\n`));
           fullLog += `[ACP] Session: ${session.sessionId}\n`;
 
@@ -345,7 +363,7 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
               fullLog += text;
               controller.enqueue(encoder.encode(text));
             } else if (type === "plan") {
-              const msg = `\n📋 Plan:\n${text}\n\n`;
+              const msg = `\nPlan:\n${text}\n\n`;
               fullLog += msg;
               controller.enqueue(encoder.encode(msg));
             }
@@ -359,7 +377,7 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
             .where(eq(scheduleItems.id, itemId))
             .run();
 
-          await acpClient.stop();
+          // Don't kill the agent — keep alive for session reuse
           controller.close();
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
