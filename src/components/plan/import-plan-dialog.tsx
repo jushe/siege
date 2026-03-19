@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
-import { Tabs } from "@/components/ui/tabs";
 
 interface ImportConfig {
   id: string;
@@ -486,6 +485,17 @@ const SOURCE_LABELS: Record<string, { en: string; zh: string }> = {
   mcp: { en: "MCP", zh: "MCP" },
 };
 
+const SOURCE_ICONS: Record<string, string> = {
+  markdown: "📄",
+  notion: "📝",
+  jira: "🎯",
+  confluence: "📖",
+  feishu: "🐦",
+  github: "🐙",
+  gitlab: "🦊",
+  mcp: "🔌",
+};
+
 export function ImportPlanDialog({
   open,
   onClose,
@@ -494,32 +504,13 @@ export function ImportPlanDialog({
   onImported,
 }: ImportPlanDialogProps) {
   const isZh = locale === "zh";
+  const [activeSource, setActiveSource] = useState("markdown");
 
-  const tabs = [
-    {
-      id: "markdown",
-      label: "Markdown",
-      content: (
-        <MarkdownTab
-          projectId={projectId}
-          locale={locale}
-          onImported={onImported}
-          onClose={onClose}
-        />
-      ),
-    },
+  const allSources = [
+    { id: "markdown", label: "Markdown" },
     ...SOURCE_TYPES.map((src) => ({
       id: src,
       label: SOURCE_LABELS[src][isZh ? "zh" : "en"],
-      content: (
-        <SourceTab
-          sourceType={src}
-          projectId={projectId}
-          locale={locale}
-          onImported={onImported}
-          onClose={onClose}
-        />
-      ),
     })),
   ];
 
@@ -528,8 +519,48 @@ export function ImportPlanDialog({
       open={open}
       onClose={onClose}
       title={isZh ? "导入计划" : "Import Plan"}
+      maxWidth="max-w-3xl"
     >
-      <Tabs tabs={tabs} defaultTab="markdown" />
+      <div className="flex min-h-[400px] -mx-6 -mb-6">
+        {/* Left sidebar */}
+        <div className="w-40 shrink-0 border-r bg-gray-50 rounded-bl-lg overflow-y-auto">
+          {allSources.map((src) => (
+            <button
+              key={src.id}
+              onClick={() => setActiveSource(src.id)}
+              className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors ${
+                activeSource === src.id
+                  ? "bg-blue-50 text-blue-700 font-medium border-r-2 border-blue-600"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <span className="text-base">{SOURCE_ICONS[src.id] || "📦"}</span>
+              <span className="truncate">{src.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Right content */}
+        <div className="flex-1 p-5 overflow-y-auto">
+          {activeSource === "markdown" ? (
+            <MarkdownTab
+              projectId={projectId}
+              locale={locale}
+              onImported={onImported}
+              onClose={onClose}
+            />
+          ) : (
+            <SourceTab
+              key={activeSource}
+              sourceType={activeSource}
+              projectId={projectId}
+              locale={locale}
+              onImported={onImported}
+              onClose={onClose}
+            />
+          )}
+        </div>
+      </div>
     </Dialog>
   );
 }
