@@ -96,7 +96,11 @@ export function ProjectList({ locale }: ProjectListProps) {
           <h3 className="text-sm font-medium text-gray-500 mb-3">
             {locale === "zh" ? "最近打开" : "Recently Opened"}
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className={`grid gap-3 ${
+            recentProjects.length === 1 ? "grid-cols-1 max-w-xl" :
+            recentProjects.length === 2 ? "grid-cols-1 md:grid-cols-2" :
+            "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          }`}>
             {recentProjects.map((project) => (
               <ProjectCard
                 key={project.id}
@@ -116,7 +120,11 @@ export function ProjectList({ locale }: ProjectListProps) {
               {locale === "zh" ? "全部项目" : "All Projects"}
             </h3>
           )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className={`grid gap-4 ${
+            otherProjects.length === 1 ? "grid-cols-1 max-w-xl" :
+            otherProjects.length === 2 ? "grid-cols-1 md:grid-cols-2" :
+            "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+          }`}>
             {otherProjects.map((project) => (
               <ProjectCard
                 key={project.id}

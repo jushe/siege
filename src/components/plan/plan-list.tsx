@@ -183,7 +183,11 @@ export function PlanList({ projectId, locale }: PlanListProps) {
 
       {/* Folders */}
       {folders.length > 0 && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+        <div className={`grid gap-2 mb-4 ${
+          folders.length === 1 ? "grid-cols-1 max-w-xs" :
+          folders.length <= 3 ? "grid-cols-2 md:grid-cols-3" :
+          "grid-cols-2 md:grid-cols-4"
+        }`}>
           {folders.map((folder) => (
             <div
               key={folder.id}
