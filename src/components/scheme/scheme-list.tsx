@@ -247,6 +247,7 @@ export function SchemeList({
               onUpdate={handleUpdate}
               onDelete={handleDelete}
               findings={reviewFindings}
+              onFindingsChanged={fetchReviewFindings}
             />
           ))}
         </div>

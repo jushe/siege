@@ -37,6 +37,7 @@ interface SchemeCardProps {
   onUpdate: (id: string, data: { title: string; content: string }) => void;
   onDelete: (id: string) => void;
   findings?: ReviewFinding[];
+  onFindingsChanged?: () => void;
 }
 
 export function SchemeCard({
@@ -45,6 +46,7 @@ export function SchemeCard({
   onUpdate,
   onDelete,
   findings = [],
+  onFindingsChanged,
 }: SchemeCardProps) {
   const t = useTranslations();
   const isZh = t("common.back") === "返回";
@@ -200,6 +202,7 @@ export function SchemeCard({
           onContentUpdated={(newContent) => {
             onUpdate(scheme.id, { title: scheme.title, content: newContent });
           }}
+          onFindingsChanged={onFindingsChanged}
         />
       ) : (
         <MarkdownRenderer content={scheme.content || ""} />

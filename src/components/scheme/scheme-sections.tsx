@@ -77,6 +77,7 @@ interface SchemeSectionsProps {
   readonly?: boolean;
   findings?: Finding[];
   onContentUpdated?: (newContent: string) => void;
+  onFindingsChanged?: () => void;
 }
 
 const severityStyles: Record<string, { bg: string; border: string; text: string }> = {
@@ -91,6 +92,7 @@ export function SchemeSections({
   readonly,
   findings = [],
   onContentUpdated,
+  onFindingsChanged,
 }: SchemeSectionsProps) {
   const t = useTranslations();
   const isZh = t("common.back") === "返回";
@@ -156,6 +158,15 @@ export function SchemeSections({
     startLoading(isZh ? "AI 正在修复..." : "AI fixing...");
     const prompt = `请根据以下审查意见修复方案中「${section.title}」段落：\n\n**${finding.title}**\n${finding.content || ""}\n\n当前该段落内容：\n${section.heading}\n${section.content}`;
     const ok = await streamSectionEdit(prompt, sectionIndex);
+    if (ok) {
+      // Mark finding as resolved
+      await fetch(`/api/review-items/${finding.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ resolved: true }),
+      });
+      if (onFindingsChanged) onFindingsChanged();
+    }
     stopLoading(ok ? (isZh ? "修复完成" : "Fixed") : (isZh ? "修复失败" : "Fix failed"));
   };
 
