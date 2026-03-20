@@ -94,8 +94,8 @@ function DirNode({
       {node.name && !node.file && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-1 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100 transition-colors"
-          style={{ paddingLeft: `${depth * 12 + 8}px` }}
+          className="w-full flex items-center gap-1 px-2 py-1 text-xs hover:opacity-80 transition-colors"
+          style={{ color: "var(--muted)", paddingLeft: `${depth * 12 + 8}px` }}
         >
           <svg
             className={`w-3 h-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -216,19 +216,19 @@ export function FileSidebar({ files, selectedFile, onSelectFile }: FileSidebarPr
 
   if (files.length === 0) {
     return (
-      <div className="w-64 border-r p-4">
-        <p className="text-sm text-gray-500">{t("review.noChanges")}</p>
+      <div className="w-64 p-4" style={{ borderRight: "1px solid var(--card-border)" }}>
+        <p className="text-sm" style={{ color: "var(--muted)" }}>{t("review.noChanges")}</p>
       </div>
     );
   }
 
   return (
-    <div className="w-64 border-r overflow-y-auto bg-white">
-      <div className="p-3 border-b bg-gray-50">
-        <h5 className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+    <div className="w-64 overflow-y-auto" style={{ background: "var(--card)", borderRight: "1px solid var(--card-border)" }}>
+      <div className="p-3" style={{ background: "var(--background)", borderBottom: "1px solid var(--card-border)" }}>
+        <h5 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
           {t("review.changedFiles")}
         </h5>
-        <span className="text-[10px] text-gray-400">{files.length} files</span>
+        <span className="text-[10px]" style={{ color: "var(--muted)" }}>{files.length} files</span>
       </div>
       <div className="py-1">
         <DirNode

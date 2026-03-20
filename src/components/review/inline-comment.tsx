@@ -41,7 +41,7 @@ export function InlineComment({ reviewId, filePath, lineNumber, onClose, onSubmi
   };
 
   return (
-    <div className="mx-12 my-1 p-3 rounded border border-blue-200 bg-blue-50 text-xs">
+    <div className="mx-12 my-1 p-3 rounded border text-xs" style={{ borderColor: "var(--card-border)", background: "var(--card)" }}>
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
@@ -58,9 +58,9 @@ export function InlineComment({ reviewId, filePath, lineNumber, onClose, onSubmi
         </Button>
       </div>
       {aiResponse && (
-        <div className="mt-2 p-2 bg-white rounded border border-blue-100">
+        <div className="mt-2 p-2 rounded border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
           <span className="font-semibold text-blue-700">{t("review.aiSuggestion")}:</span>
-          <p className="mt-1 text-gray-700 whitespace-pre-wrap">{aiResponse}</p>
+          <p className="mt-1 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>{aiResponse}</p>
         </div>
       )}
     </div>

@@ -205,7 +205,7 @@ export function DiffViewer({
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="sticky top-0 bg-gray-100 border-b px-4 py-2 font-mono text-xs text-gray-600 z-10">
+      <div className="sticky top-0 px-4 py-2 font-mono text-xs z-10" style={{ background: "var(--background)", borderBottom: "1px solid var(--card-border)", color: "var(--muted)" }}>
         {filePath}
       </div>
       <div className="font-mono text-xs">
@@ -229,15 +229,23 @@ export function DiffViewer({
               <div
                 className={`flex ${
                   line.type === "add"
-                    ? "bg-green-50"
+                    ? ""
                     : line.type === "remove"
-                      ? "bg-red-50"
-                      : "hover:bg-gray-50"
+                      ? ""
+                      : "hover:opacity-80"
                 }`}
+                style={{
+                  ...(line.type === "add"
+                    ? { background: "rgba(74,222,128,0.1)" }
+                    : line.type === "remove"
+                      ? { background: "rgba(248,113,113,0.1)" }
+                      : {}),
+                }}
               >
                 {/* Old line number gutter */}
                 <button
-                  className="w-12 text-right pr-2 text-gray-400 select-none border-r border-gray-200 hover:bg-blue-100 hover:text-blue-600 shrink-0"
+                  className="w-12 text-right pr-2 select-none hover:opacity-80 shrink-0"
+                  style={{ color: "var(--muted)", borderRight: "1px solid var(--card-border)" }}
                   onClick={() => lineNum && setCommentLine(commentLine === lineNum ? null : lineNum)}
                   title={t("review.addComment")}
                 >
@@ -245,7 +253,8 @@ export function DiffViewer({
                 </button>
                 {/* New line number gutter */}
                 <button
-                  className="w-12 text-right pr-2 text-gray-400 select-none border-r border-gray-200 hover:bg-blue-100 hover:text-blue-600 shrink-0"
+                  className="w-12 text-right pr-2 select-none hover:opacity-80 shrink-0"
+                  style={{ color: "var(--muted)", borderRight: "1px solid var(--card-border)" }}
                   onClick={() => lineNum && setCommentLine(commentLine === lineNum ? null : lineNum)}
                   title={t("review.addComment")}
                 >
@@ -279,9 +288,10 @@ export function DiffViewer({
                     key={finding.id}
                     className={`mx-12 my-1 p-2 rounded border text-xs ${
                       finding.resolved
-                        ? "bg-gray-50 border-gray-200 opacity-60"
+                        ? "opacity-60"
                         : severityColors[finding.severity] || severityColors.info
                     }`}
+                    style={finding.resolved ? { background: "var(--background)", borderColor: "var(--card-border)" } : {}}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -319,12 +329,12 @@ export function DiffViewer({
                       )}
                     </div>
                     {finding.content && (
-                      <p className="mt-1 text-gray-700">{finding.content}</p>
+                      <p className="mt-1" style={{ color: "var(--foreground)" }}>{finding.content}</p>
                     )}
                     {fixResult && !fixResult.applied && (
-                      <div className="mt-2 p-2 bg-white rounded border border-blue-100">
+                      <div className="mt-2 p-2 rounded border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                         <span className="font-semibold text-blue-700">{t("review.aiSuggestion")}:</span>
-                        <pre className="mt-1 text-gray-700 whitespace-pre-wrap text-xs">{fixResult.aiResponse}</pre>
+                        <pre className="mt-1 whitespace-pre-wrap text-xs" style={{ color: "var(--foreground)" }}>{fixResult.aiResponse}</pre>
                       </div>
                     )}
                   </div>
@@ -333,12 +343,12 @@ export function DiffViewer({
 
               {/* Existing comments */}
               {lineComments?.map((comment) => (
-                <div key={comment.id} className="mx-12 my-1 p-2 rounded border border-purple-200 bg-purple-50 text-xs">
-                  <p className="text-gray-800">{comment.content}</p>
+                <div key={comment.id} className="mx-12 my-1 p-2 rounded border text-xs" style={{ borderColor: "var(--card-border)", background: "var(--card)" }}>
+                  <p style={{ color: "var(--foreground)" }}>{comment.content}</p>
                   {comment.aiResponse && (
-                    <div className="mt-1 p-1.5 bg-white rounded border border-purple-100">
+                    <div className="mt-1 p-1.5 rounded border" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                       <span className="font-semibold text-purple-700">{t("review.aiSuggestion")}:</span>
-                      <p className="mt-0.5 text-gray-700 whitespace-pre-wrap">{comment.aiResponse}</p>
+                      <p className="mt-0.5 whitespace-pre-wrap" style={{ color: "var(--foreground)" }}>{comment.aiResponse}</p>
                     </div>
                   )}
                 </div>
