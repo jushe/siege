@@ -154,10 +154,13 @@ function FileLeaf({
   return (
     <button
       onClick={onSelect}
-      className={`w-full flex items-center gap-1.5 px-2 py-1 text-xs hover:bg-gray-100 transition-colors ${
-        isActive ? "bg-blue-50 text-blue-700" : "text-gray-700"
-      }`}
-      style={{ paddingLeft: `${depth * 12 + 8}px` }}
+      className="w-full flex items-center gap-1.5 px-2 py-1 text-xs transition-colors hover:opacity-80"
+      style={{
+        paddingLeft: `${depth * 12 + 8}px`,
+        ...(isActive
+          ? { background: "var(--card-border)", color: "var(--foreground)" }
+          : { color: "var(--muted)" }),
+      }}
       title={file.filePath}
     >
       <FileIcon name={name} />

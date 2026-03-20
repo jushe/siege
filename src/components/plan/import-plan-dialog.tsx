@@ -528,12 +528,11 @@ export function ImportPlanDialog({
             <button
               key={src.id}
               onClick={() => setActiveSource(src.id)}
-              className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors ${
-                activeSource === src.id
-                  ? "bg-blue-50 text-blue-700 font-medium border-r-2 border-blue-600"
-                  : "hover:opacity-80"
-              }`}
-              style={activeSource !== src.id ? { color: "var(--muted)" } : undefined}
+              className={`w-full text-left px-3 py-2.5 text-sm flex items-center gap-2 transition-colors font-${activeSource === src.id ? "medium" : "normal"} hover:opacity-80`}
+              style={activeSource === src.id
+                ? { background: "var(--card-border)", color: "var(--foreground)", borderRight: "2px solid var(--foreground)" }
+                : { color: "var(--muted)" }
+              }
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={SOURCE_ICONS[src.id]} alt="" className="w-4 h-4 shrink-0" />

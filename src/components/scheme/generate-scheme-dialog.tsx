@@ -83,17 +83,17 @@ export function GenerateSchemeDialog({
                 key={p.id}
                 type="button"
                 onClick={() => setProvider(p.id)}
-                className={`px-3 py-1.5 text-sm rounded-md border flex items-center gap-1 ${
-                  provider === p.id
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-600 border-gray-300 hover:border-gray-400"
-                }`}
+                className="px-3 py-1.5 text-sm rounded-md border flex items-center gap-1"
+                style={provider === p.id
+                  ? { background: "var(--foreground)", color: "var(--background)", borderColor: "var(--foreground)" }
+                  : { background: "var(--card)", color: "var(--muted)", borderColor: "var(--card-border)" }
+                }
               >
                 {p.label}
                 {p.badge && (
-                  <span className={`text-[10px] px-1 rounded ${
-                    provider === p.id ? "bg-white/20" : "bg-purple-50 text-purple-600"
-                  }`}>{p.badge}</span>
+                  <span className="text-[10px] px-1 rounded" style={
+                    provider === p.id ? { background: "rgba(0,0,0,0.2)" } : { background: "var(--card-border)", color: "var(--foreground)" }
+                  }>{p.badge}</span>
                 )}
               </button>
             ))}

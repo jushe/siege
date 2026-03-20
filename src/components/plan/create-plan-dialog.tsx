@@ -123,12 +123,11 @@ export function CreatePlanDialog({
                 key={t_}
                 type="button"
                 onClick={() => setTag(t_)}
-                className={`px-3 py-1 text-xs rounded-full border transition-colors ${
-                  tag === t_
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : ""
-                }`}
-                style={tag !== t_ ? { background: "var(--card)", color: "var(--muted)", borderColor: "var(--card-border)" } : undefined}
+                className="px-3 py-1 text-xs rounded-full border transition-colors"
+                style={tag === t_
+                  ? { background: "var(--foreground)", color: "var(--background)", borderColor: "var(--foreground)" }
+                  : { background: "var(--card)", color: "var(--muted)", borderColor: "var(--card-border)" }
+                }
               >
                 {t(`plan.tags.${t_}`)}
               </button>

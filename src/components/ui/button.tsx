@@ -1,7 +1,7 @@
 import { ButtonHTMLAttributes, forwardRef } from "react";
 
 const variants = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700",
+  primary: "hover:opacity-90",
   secondary: "border hover:opacity-80",
   danger: "bg-red-600 text-white hover:bg-red-700",
   ghost: "hover:opacity-80",
@@ -24,11 +24,13 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     ref
   ) => {
     const variantStyle: React.CSSProperties | undefined =
-      variant === "secondary"
-        ? { background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)", ...style }
-        : variant === "ghost"
-          ? { color: "var(--muted)", ...style }
-          : style;
+      variant === "primary"
+        ? { background: "var(--foreground)", color: "var(--background)", ...style }
+        : variant === "secondary"
+          ? { background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)", ...style }
+          : variant === "ghost"
+            ? { color: "var(--muted)", ...style }
+            : style;
 
     return (
       <button
