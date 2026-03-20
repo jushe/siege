@@ -337,7 +337,7 @@ export function ReviewPanel({
               status={latestReview.status}
               label={t(`review.status.${latestReview.status}`)}
             />
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-gray-400" suppressHydrationWarning>
               {new Date(latestReview.createdAt).toLocaleString()}
             </span>
           </div>

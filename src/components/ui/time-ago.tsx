@@ -19,12 +19,13 @@ function formatTimeAgo(date: string, isZh: boolean): string {
   if (diffMin < 60) return isZh ? `${diffMin} 分钟前` : `${diffMin}m ago`;
   if (diffHr < 24) return isZh ? `${diffHr} 小时前` : `${diffHr}h ago`;
   if (diffDay < 30) return isZh ? `${diffDay} 天前` : `${diffDay}d ago`;
-  return new Date(date).toLocaleDateString();
+  return date.slice(0, 10);
 }
 
 export function TimeAgo({ date, locale = "en" }: TimeAgoProps) {
   const isZh = locale === "zh";
-  const [text, setText] = useState(() => new Date(date).toLocaleDateString());
+  // Use ISO date substring as initial value to avoid SSR/client locale mismatch
+  const [text, setText] = useState(() => date?.slice(0, 10) || "");
 
   useEffect(() => {
     setText(formatTimeAgo(date, isZh));

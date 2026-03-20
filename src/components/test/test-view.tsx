@@ -216,7 +216,7 @@ export function TestView({
                               <span className="text-gray-400">
                                 {r.durationMs}ms
                               </span>
-                              <span className="text-gray-400">
+                              <span className="text-gray-400" suppressHydrationWarning>
                                 {new Date(r.runAt).toLocaleString()}
                               </span>
                             </div>
