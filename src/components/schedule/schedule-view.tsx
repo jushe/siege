@@ -454,153 +454,108 @@ export function ScheduleView({
             onDateChange={handleDateChange}
             onClick={(taskId) => {
               const item = schedule.items.find((i) => i.id === taskId);
-              setSelectedItem(item || null);
+              setSelectedItem(selectedItem?.id === taskId ? null : item || null);
             }}
           />
 
-          <div className="mt-6 space-y-3">
-            {schedule.items
-              .sort((a, b) => a.order - b.order)
-              .map((item) => {
-                const isEditing = editingItem === item.id;
-                const isSelected = selectedItem?.id === item.id;
-
-                return (
-                  <div
-                    key={item.id}
-                    className={`rounded-lg border p-4 ${
-                      isSelected ? "ring-2" : ""
-                    }`}
-                    style={{ background: "var(--card)", borderColor: "var(--card-border)", "--tw-ring-color": isSelected ? "var(--foreground)" : undefined } as React.CSSProperties}
-                    onClick={() => setSelectedItem(item)}
-                  >
-                    {isEditing ? (
-                      /* Inline edit form */
-                      <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          className="w-full border rounded px-2 py-1 text-sm font-medium"
+          {/* Selected task detail panel */}
+          {selectedItem && (() => {
+            const item = selectedItem;
+            const isEditing = editingItem === item.id;
+            return (
+              <div className="mt-4 rounded-lg border p-4" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <input
+                      className="w-full border rounded px-2 py-1 text-sm font-medium"
+                      style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                      value={editForm.title}
+                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                    />
+                    <textarea
+                      className="w-full border rounded px-2 py-1 text-sm resize-y min-h-[60px]"
+                      style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                      value={editForm.description}
+                      onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                      placeholder={isZh ? "任务描述..." : "Task description..."}
+                    />
+                    <div className="flex gap-3">
+                      <label className="flex-1">
+                        <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "开始时间" : "Start"}</span>
+                        <input type="datetime-local" className="w-full border rounded px-2 py-1 text-sm"
                           style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-                          value={editForm.title}
-                          onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                        />
-                        <textarea
-                          className="w-full border rounded px-2 py-1 text-sm resize-y min-h-[60px]"
+                          value={editForm.startDate} onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })} />
+                      </label>
+                      <label className="flex-1">
+                        <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "结束时间" : "End"}</span>
+                        <input type="datetime-local" className="w-full border rounded px-2 py-1 text-sm"
                           style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-                          value={editForm.description}
-                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                          placeholder={isZh ? "任务描述..." : "Task description..."}
-                        />
-                        <div className="flex gap-3">
-                          <label className="flex-1">
-                            <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "开始时间" : "Start"}</span>
-                            <input
-                              type="datetime-local"
-                              className="w-full border rounded px-2 py-1 text-sm"
-                              style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-                              value={editForm.startDate}
-                              onChange={(e) => setEditForm({ ...editForm, startDate: e.target.value })}
-                            />
-                          </label>
-                          <label className="flex-1">
-                            <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "结束时间" : "End"}</span>
-                            <input
-                              type="datetime-local"
-                              className="w-full border rounded px-2 py-1 text-sm"
-                              style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-                              value={editForm.endDate}
-                              onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })}
-                            />
-                          </label>
-                        </div>
-                        <div>
-                          <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "执行引擎" : "Engine"}</span>
-                          <select
-                            className="w-full border rounded px-2 py-1 text-sm"
-                            style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-                            value={editForm.engine}
-                            onChange={(e) => setEditForm({ ...editForm, engine: e.target.value })}
-                          >
-                            <option value="claude-code">Claude Code (SDK)</option>
-                            <option value="acp">Claude Code (ACP)</option>
-                            <option value="codex-acp">Codex (ACP)</option>
-                          </select>
-                        </div>
-                        <div className="flex gap-2 justify-end">
-                          <Button variant="secondary" size="sm" onClick={() => setEditingItem(null)}>
-                            {t("common.cancel")}
-                          </Button>
-                          <Button size="sm" onClick={saveEdit}>
-                            {t("common.save")}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Normal display */
-                      <>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm" style={{ color: "var(--muted)" }}>#{item.order}</span>
-                            <h4 className="font-medium">{item.title}</h4>
-                            <StatusBadge status={item.status} label={item.status} />
-                            <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
-                              {formatDateTime(item.startDate)} → {formatDateTime(item.endDate)}
-                            </span>
-                            {item.engine === "acp" && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>ACP</span>
-                            )}
-                            {item.engine === "codex-acp" && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>Codex</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm" style={{ color: "var(--muted)" }}>{item.progress}%</span>
-                            {canEdit && item.status === "pending" && (
-                              <>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); startEditing(item); }}
-                                  className="text-xs px-2 py-1 rounded"
-                                  style={{ color: "var(--muted)" }}
-                                >
-                                  {t("common.edit")}
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }}
-                                  className="text-xs px-2 py-1 rounded text-red-500 hover:bg-red-50"
-                                >
-                                  {t("common.delete")}
-                                </button>
-                              </>
-                            )}
-                            {canExecute && item.status === "pending" && (
-                              <Button
-                                size="sm"
-                                onClick={(e) => { e.stopPropagation(); setRunDialogItem(item); }}
-                                disabled={executing !== null}
-                              >
-                                {executing === item.id ? t("common.loading") : "Run"}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                        {isSelected && item.description && (
-                          <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--card-border)" }}>
-                            <MarkdownRenderer content={item.description} />
-                          </div>
-                        )}
-                        {isSelected && item.executionLog && (
-                          <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--card-border)" }}>
-                            <h5 className="text-sm font-medium mb-1">{t("plan.tabs.logs")}</h5>
-                            <pre className="text-xs p-3 rounded overflow-auto max-h-60" style={{ background: "var(--background)" }}>
-                              {item.executionLog}
-                            </pre>
-                          </div>
-                        )}
-                      </>
-                    )}
+                          value={editForm.endDate} onChange={(e) => setEditForm({ ...editForm, endDate: e.target.value })} />
+                      </label>
+                    </div>
+                    <div>
+                      <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "执行引擎" : "Engine"}</span>
+                      <select className="w-full border rounded px-2 py-1 text-sm"
+                        style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                        value={editForm.engine} onChange={(e) => setEditForm({ ...editForm, engine: e.target.value })}>
+                        <option value="claude-code">Claude Code (SDK)</option>
+                        <option value="acp">Claude Code (ACP)</option>
+                        <option value="codex-acp">Codex (ACP)</option>
+                      </select>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <Button variant="secondary" size="sm" onClick={() => setEditingItem(null)}>{t("common.cancel")}</Button>
+                      <Button size="sm" onClick={saveEdit}>{t("common.save")}</Button>
+                    </div>
                   </div>
-                );
-              })}
-          </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm" style={{ color: "var(--muted)" }}>#{item.order}</span>
+                        <h4 className="font-medium">{item.title}</h4>
+                        <StatusBadge status={item.status} label={item.status} />
+                        {item.engine === "acp" && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>ACP</span>
+                        )}
+                        {item.engine === "codex-acp" && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>Codex</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm" style={{ color: "var(--muted)" }}>{item.progress}%</span>
+                        {canEdit && item.status === "pending" && (
+                          <>
+                            <button onClick={() => startEditing(item)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--muted)" }}>{t("common.edit")}</button>
+                            <button onClick={() => handleDeleteItem(item.id)} className="text-xs px-2 py-1 rounded text-red-500">{t("common.delete")}</button>
+                          </>
+                        )}
+                        {canExecute && item.status === "pending" && (
+                          <Button size="sm" onClick={() => setRunDialogItem(item)} disabled={executing !== null}>
+                            {executing === item.id ? t("common.loading") : "Run"}
+                          </Button>
+                        )}
+                        <button onClick={() => setSelectedItem(null)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--muted)" }}>✕</button>
+                      </div>
+                    </div>
+                    {item.description && (
+                      <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--card-border)" }}>
+                        <MarkdownRenderer content={item.description} />
+                      </div>
+                    )}
+                    {item.executionLog && (
+                      <div className="mt-3 border-t pt-3" style={{ borderColor: "var(--card-border)" }}>
+                        <h5 className="text-sm font-medium mb-1">{t("plan.tabs.logs")}</h5>
+                        <pre className="text-xs p-3 rounded overflow-auto max-h-60" style={{ background: "var(--background)" }}>
+                          {item.executionLog}
+                        </pre>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
 
