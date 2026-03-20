@@ -173,6 +173,11 @@ export async function POST(req: NextRequest) {
   try {
     aiModel = getStepModel("review", provider, model);
   } catch (err) {
+    // Rollback the in_progress review
+    db.update(reviews)
+      .set({ status: "changes_requested", content: err instanceof Error ? err.message : String(err) })
+      .where(eq(reviews.id, reviewId))
+      .run();
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 503 });
   }
@@ -185,9 +190,22 @@ export async function POST(req: NextRequest) {
 
   const responseStream = new ReadableStream({
     async start(controller) {
+      try {
       for await (const chunk of textStream) {
         fullText += chunk;
         controller.enqueue(encoder.encode(chunk));
+      }
+      } catch (streamErr) {
+        const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
+        controller.enqueue(encoder.encode(`\nError: ${msg}`));
+        // Mark review as failed
+        const db2 = getDb();
+        db2.update(reviews)
+          .set({ status: "changes_requested", content: `AI error: ${msg}`, updatedAt: new Date().toISOString() })
+          .where(eq(reviews.id, reviewId))
+          .run();
+        controller.close();
+        return;
       }
       controller.close();
 
@@ -236,6 +254,11 @@ export async function POST(req: NextRequest) {
         }
       } catch (err) {
         console.error("[review-generate] save failed:", err);
+        const db3 = getDb();
+        db3.update(reviews)
+          .set({ status: "changes_requested", content: `Save error: ${err instanceof Error ? err.message : err}`, updatedAt: new Date().toISOString() })
+          .where(eq(reviews.id, reviewId))
+          .run();
       }
     },
   });
