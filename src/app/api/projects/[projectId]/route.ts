@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { syncGuidelinesToFiles } from "@/lib/guidelines-sync";
 
 export async function GET(
   _req: NextRequest,
@@ -48,6 +49,12 @@ export async function PUT(
     .from(projects)
     .where(eq(projects.id, projectId))
     .get();
+
+  // Sync guidelines to CLAUDE.md / AGENTS.md when updated
+  if (guidelines !== undefined && project) {
+    syncGuidelinesToFiles(project.targetRepoPath, project.name, guidelines || "");
+  }
+
   return NextResponse.json(project);
 }
 

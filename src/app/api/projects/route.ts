@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { desc, eq } from "drizzle-orm";
+import { syncGuidelinesToFiles } from "@/lib/guidelines-sync";
 
 export async function GET() {
   const db = getDb();
@@ -27,6 +28,11 @@ export async function POST(req: NextRequest) {
   const db = getDb();
   const id = crypto.randomUUID();
   db.insert(projects).values({ id, name, icon: icon || "📁", description, guidelines, targetRepoPath }).run();
+
+  // Write guidelines to CLAUDE.md and AGENTS.md in target repo
+  if (guidelines) {
+    syncGuidelinesToFiles(targetRepoPath, name, guidelines);
+  }
 
   const project = db
     .select()
