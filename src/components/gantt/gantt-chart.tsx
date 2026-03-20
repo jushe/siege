@@ -160,7 +160,7 @@ export function GanttChart({ tasks, onDateChange, onClick }: GanttChartProps) {
                     />
                   )}
 
-                  {/* Date range label inside bar */}
+                  {/* Duration label inside bar */}
                   <span
                     className="truncate px-2 pointer-events-none whitespace-nowrap"
                     style={{
@@ -172,9 +172,13 @@ export function GanttChart({ tasks, onDateChange, onClick }: GanttChartProps) {
                       textShadow: "0 1px 2px rgba(0,0,0,0.15)",
                     }}
                   >
-                    {formatDate(isPreview ? new Date(startMs) : task.start)}
-                    <span style={{ opacity: 0.6, margin: "0 3px" }}>&rarr;</span>
-                    {formatDate(isPreview ? new Date(endMs) : task.end)}
+                    {(() => {
+                      const durationMs = endMs - startMs;
+                      const hours = durationMs / 3600000;
+                      if (hours < 1) return `${Math.round(hours * 60)}m`;
+                      if (hours % 1 === 0) return `${hours}h`;
+                      return `${hours.toFixed(1)}h`;
+                    })()}
                   </span>
 
                   {/* Resize handle */}
