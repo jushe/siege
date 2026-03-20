@@ -99,6 +99,45 @@ export function SchemeSections({
     }
   };
 
+  const handleFindingFix = async (finding: Finding, section: Section) => {
+    if (!schemeId) return;
+    startLoading(isZh ? "AI 正在修复..." : "AI fixing...");
+    try {
+      const res = await fetch("/api/schemes/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          schemeId,
+          message: `请根据以下审查意见修复方案中「${section.title}」段落：\n\n**${finding.title}**\n${finding.content || ""}\n\n当前该段落内容：\n${section.heading}\n${section.content}`,
+        }),
+      });
+      if (res.ok && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let aiContent = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          aiContent += decoder.decode(value, { stream: true });
+          updateContent(aiContent);
+        }
+        await new Promise((r) => setTimeout(r, 1000));
+        const schemeRes = await fetch(`/api/schemes/${schemeId}`);
+        if (schemeRes.ok) {
+          const updated = await schemeRes.json();
+          if (updated.content && onContentUpdated) {
+            onContentUpdated(updated.content);
+          }
+        }
+        stopLoading(isZh ? "修复完成" : "Fixed");
+      } else {
+        stopLoading(isZh ? "修复失败" : "Fix failed");
+      }
+    } catch {
+      stopLoading(isZh ? "修复失败" : "Fix failed");
+    }
+  };
+
   const handleSectionSuggest = async (sectionIndex: number) => {
     if (!suggestion.trim() || !schemeId) return;
 
@@ -214,13 +253,27 @@ export function SchemeSections({
                             className={`rounded-md border px-3 py-2 text-xs ${f.resolved ? "opacity-40" : ""}`}
                             style={{ background: s.bg, borderColor: s.border, color: s.text }}
                           >
-                            <div className="flex items-center gap-2 font-medium">
-                              <span className="uppercase text-[10px] px-1.5 py-0.5 rounded"
-                                style={{ background: s.border }}>
-                                {f.severity}
-                              </span>
-                              {f.title}
-                              {f.resolved && <span style={{ color: "var(--muted)" }}>(resolved)</span>}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 font-medium">
+                                <span className="uppercase text-[10px] px-1.5 py-0.5 rounded"
+                                  style={{ background: s.border }}>
+                                  {f.severity}
+                                </span>
+                                {f.title}
+                                {f.resolved && <span style={{ color: "var(--muted)" }}>(resolved)</span>}
+                              </div>
+                              {!f.resolved && !readonly && schemeId && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleFindingFix(f, section);
+                                  }}
+                                  className="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium hover:opacity-80"
+                                  style={{ background: s.border, color: s.text }}
+                                >
+                                  {isZh ? "AI 修复" : "AI Fix"}
+                                </button>
+                              )}
                             </div>
                             {f.content && (
                               <div className="mt-1 opacity-90">
