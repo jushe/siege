@@ -82,6 +82,11 @@ export function ScheduleView({
     const res = await fetch(`/api/schedules?planId=${planId}`);
     const data = await res.json();
     setSchedule(data);
+    // Sync selectedItem with fresh data
+    if (data && selectedItem) {
+      const updated = data.items?.find((i: ScheduleItem) => i.id === selectedItem.id);
+      setSelectedItem(updated || null);
+    }
   };
 
   const { startLoading, updateContent, stopLoading } = useGlobalLoading();
