@@ -87,8 +87,14 @@ Output ONLY a JSON array. No conversation, no markdown fences, no explanation.
 Start directly with [ and end with ].
 </IMPORTANT>
 
-Break these confirmed schemes into executable IMPLEMENTATION tasks only.
-Estimate effort in hours (1-8 hours per task).
+Break these confirmed schemes into executable IMPLEMENTATION tasks.
+These tasks will be executed by an AI coding agent (Claude Code / Codex), NOT a human developer.
+
+Estimation guidelines:
+- Small changes (config, rename, add field): 0.1-0.3 hours
+- Medium changes (new function, refactor module): 0.3-1 hour
+- Large changes (new feature, multi-file refactor): 1-3 hours
+- Keep tasks small and focused — prefer many small tasks over few large ones
 
 IMPORTANT: Do NOT include testing tasks. Testing is handled in a separate phase.
 Focus only on implementation: code changes, new files, refactoring, configuration.
@@ -96,8 +102,8 @@ Focus only on implementation: code changes, new files, refactoring, configuratio
 JSON array format — each object has:
 - schemeId: scheme ID string or null
 - title: short task title
-- description: markdown description of what to do
-- estimatedHours: number (1-8)
+- description: markdown description of what to do (be specific about file paths and changes)
+- estimatedHours: number (0.1-3, realistic for AI agent execution)
 - order: execution order starting from 1
 
 Plan: ${plan.name}
@@ -168,8 +174,14 @@ Output ONLY a JSON array. No conversation, no markdown fences, no explanation.
 Start directly with [ and end with ].
 </IMPORTANT>
 
-Break these confirmed schemes into executable IMPLEMENTATION tasks only.
-Estimate effort in hours (1-8 hours per task).
+Break these confirmed schemes into executable IMPLEMENTATION tasks.
+These tasks will be executed by an AI coding agent (Claude Code / Codex), NOT a human developer.
+
+Estimation guidelines:
+- Small changes (config, rename, add field): 0.1-0.3 hours
+- Medium changes (new function, refactor module): 0.3-1 hour
+- Large changes (new feature, multi-file refactor): 1-3 hours
+- Keep tasks small and focused — prefer many small tasks over few large ones
 
 IMPORTANT: Do NOT include testing tasks. Testing is handled in a separate phase.
 Focus only on implementation: code changes, new files, refactoring, configuration.
@@ -177,8 +189,8 @@ Focus only on implementation: code changes, new files, refactoring, configuratio
 JSON array format — each object has:
 - schemeId: scheme ID string or null
 - title: short task title
-- description: markdown description of what to do
-- estimatedHours: number (1-8)
+- description: markdown description of what to do (be specific about file paths and changes)
+- estimatedHours: number (0.1-3, realistic for AI agent execution)
 - order: execution order starting from 1
 
 Plan: ${plan.name}
