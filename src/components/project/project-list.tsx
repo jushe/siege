@@ -58,6 +58,12 @@ export function ProjectList({ locale }: ProjectListProps) {
     fetchProjects();
   };
 
+  // Must be before any conditional returns to satisfy Rules of Hooks
+  const [recentIds, setRecentIds] = useState<string[]>([]);
+  useEffect(() => {
+    setRecentIds(getRecentProjectIds());
+  }, [projects]);
+
   if (!loaded) {
     return <p className="text-center py-12 text-gray-400">{t("common.loading")}</p>;
   }
@@ -74,10 +80,6 @@ export function ProjectList({ locale }: ProjectListProps) {
     );
   }
 
-  const [recentIds, setRecentIds] = useState<string[]>([]);
-  useEffect(() => {
-    setRecentIds(getRecentProjectIds());
-  }, [projects]);
   const recentProjects = recentIds
     .map((id) => projects.find((p) => p.id === id))
     .filter(Boolean) as Project[];
