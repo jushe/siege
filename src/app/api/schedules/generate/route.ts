@@ -76,6 +76,11 @@ export async function POST(req: NextRequest) {
     .map((s, i) => `### Scheme ${i + 1}: ${s.title} (id: ${s.id})\n${s.content}`)
     .join("\n\n");
 
+  const hasChinese = /[\u4e00-\u9fff]/.test(schemeSummary);
+  const langNote = hasChinese
+    ? "\n\nIMPORTANT: Write task title and description in Chinese (中文), matching the language of the schemes."
+    : "";
+
   const schedulePrompt = `<IMPORTANT>
 You are being called as an API. Do NOT use tools, read files, or ask questions.
 Output ONLY a JSON array. No conversation, no markdown fences, no explanation.
@@ -97,7 +102,7 @@ JSON array format — each object has:
 
 Plan: ${plan.name}
 
-${schemeSummary}
+${schemeSummary}${langNote}
 
 Output the JSON array now:`;
 
@@ -152,7 +157,12 @@ Output the JSON array now:`;
   }
   const result = streamText({
     model: aiModel,
-    prompt: `<IMPORTANT>
+    prompt: (() => {
+      const hasChinese = /[\u4e00-\u9fff]/.test(schemeSummary);
+      const langNote = hasChinese
+        ? "\n\nIMPORTANT: Write task title and description in Chinese (中文), matching the language of the schemes."
+        : "";
+      return `<IMPORTANT>
 You are being called as an API. Do NOT use tools, read files, or ask questions.
 Output ONLY a JSON array. No conversation, no markdown fences, no explanation.
 Start directly with [ and end with ].
@@ -173,9 +183,10 @@ JSON array format — each object has:
 
 Plan: ${plan.name}
 
-${schemeSummary}
+${schemeSummary}${langNote}
 
-Output the JSON array now:`,
+Output the JSON array now:`;
+    })(),
   });
 
   const textStream = result.textStream;

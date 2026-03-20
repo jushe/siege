@@ -58,13 +58,13 @@ function LoadingDialog({
     >
       <div className="rounded-xl shadow-lg flex flex-col max-h-[80vh]">
         <div className="px-6 py-4 flex items-center gap-3" style={{ borderBottom: "1px solid var(--card-border)" }}>
-          <svg className="animate-spin h-5 w-5 text-blue-600 flex-shrink-0" viewBox="0 0 24 24">
+          <svg className="animate-spin h-5 w-5 flex-shrink-0" style={{ color: "var(--foreground)" }} viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-gray-700">{message}</p>
-            <p className="text-xs text-gray-400">
+            <p className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{message}</p>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
               {content ? "" : "约 1-2 分钟"}
             </p>
           </div>
@@ -76,8 +76,8 @@ function LoadingDialog({
           {content ? (
             <MarkdownRenderer content={content} />
           ) : (
-            <div className="flex items-center justify-center h-full text-gray-300">
-              <p className="text-sm">等待 AI 输出...</p>
+            <div className="flex items-center justify-center h-full">
+              <p className="text-sm" style={{ color: "var(--muted)" }}>等待 AI 输出...</p>
             </div>
           )}
         </div>

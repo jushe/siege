@@ -449,9 +449,9 @@ export function ScheduleView({
                   <div
                     key={item.id}
                     className={`rounded-lg border p-4 ${
-                      isSelected ? "ring-2 ring-blue-500" : ""
+                      isSelected ? "ring-2" : ""
                     }`}
-                    style={{ background: "var(--card)", borderColor: "var(--card-border)" }}
+                    style={{ background: "var(--card)", borderColor: "var(--card-border)", "--tw-ring-color": isSelected ? "var(--foreground)" : undefined } as React.CSSProperties}
                     onClick={() => setSelectedItem(item)}
                   >
                     {isEditing ? (
@@ -526,10 +526,10 @@ export function ScheduleView({
                               {formatDateTime(item.startDate)} → {formatDateTime(item.endDate)}
                             </span>
                             {item.engine === "acp" && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600 font-medium">ACP</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>ACP</span>
                             )}
                             {item.engine === "codex-acp" && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-medium">Codex</span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>Codex</span>
                             )}
                           </div>
                           <div className="flex items-center gap-2">
