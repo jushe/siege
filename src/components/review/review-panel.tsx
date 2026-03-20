@@ -170,7 +170,11 @@ export function ReviewPanel({
     }
   };
 
+  const generatingRef = useRef(false);
+
   const handleGenerate = async () => {
+    if (generatingRef.current) return;
+    generatingRef.current = true;
     setGenerating(true);
     startElapsedTimer();
     try {
@@ -185,6 +189,7 @@ export function ReviewPanel({
         setStreamContent(`Error: ${errData.error || res.statusText}`);
         stopElapsedTimer();
         setGenerating(false);
+        generatingRef.current = false;
         return;
       }
 
@@ -204,10 +209,12 @@ export function ReviewPanel({
       onPlanStatusChange();
       stopElapsedTimer();
       setGenerating(false);
+      generatingRef.current = false;
     } catch (err) {
       setStreamContent(`Error: ${err instanceof Error ? err.message : String(err)}`);
       stopElapsedTimer();
       setGenerating(false);
+      generatingRef.current = false;
     }
   };
 
