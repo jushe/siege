@@ -128,7 +128,18 @@ export function ReviewPanel({
     if (pollRef.current) clearInterval(pollRef.current);
     startElapsedTimer();
     setStreamContent(isZh ? "审查进行中，等待结果..." : "Review in progress, waiting for results...");
+    let pollCount = 0;
     pollRef.current = setInterval(async () => {
+      pollCount++;
+      // Timeout after 5 minutes (100 polls * 3s)
+      if (pollCount > 100) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        pollRef.current = null;
+        stopElapsedTimer();
+        setStreamContent(isZh ? "审查超时，请重试。" : "Review timed out. Please retry.");
+        setGenerating(false);
+        return;
+      }
       const data = await fetchReviews();
       const latest = data[data.length - 1];
       if (latest && latest.status !== "in_progress") {
@@ -169,7 +180,15 @@ export function ReviewPanel({
         body: JSON.stringify({ planId, type, ...(reviewProvider && { provider: reviewProvider }) }),
       });
 
-      if (res.ok && res.body) {
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        setStreamContent(`Error: ${errData.error || res.statusText}`);
+        stopElapsedTimer();
+        setGenerating(false);
+        return;
+      }
+
+      if (res.body) {
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let content = "";
@@ -185,7 +204,8 @@ export function ReviewPanel({
       onPlanStatusChange();
       stopElapsedTimer();
       setGenerating(false);
-    } catch {
+    } catch (err) {
+      setStreamContent(`Error: ${err instanceof Error ? err.message : String(err)}`);
       stopElapsedTimer();
       setGenerating(false);
     }
