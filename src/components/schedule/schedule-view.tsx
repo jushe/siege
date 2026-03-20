@@ -188,11 +188,31 @@ export function ScheduleView({
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let content = "";
+        updateContent(isZh ? "AI 正在分析方案并拆解任务..." : "AI analyzing schemes and breaking down tasks...");
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
           content += decoder.decode(value, { stream: true });
-          updateContent(content);
+          // Parse partial JSON to show tasks as markdown list
+          try {
+            const tasks = JSON.parse(content.trim().replace(/,\s*$/, "") + "]") as Array<{ title?: string; description?: string; estimatedHours?: number; order?: number }>;
+            if (tasks.length > 0) {
+              const md = tasks.map((t, i) =>
+                `### ${t.order || i + 1}. ${t.title || "..."}\n${t.description || ""}\n\n> ${isZh ? "预估" : "Est."} ${t.estimatedHours || "?"}h`
+              ).join("\n\n---\n\n");
+              updateContent(md);
+            }
+          } catch {
+            // JSON not complete yet — try extracting what we can
+            const titles = content.match(/"title"\s*:\s*"([^"]+)"/g);
+            if (titles && titles.length > 0) {
+              const list = titles.map((m, i) => {
+                const t = m.match(/"title"\s*:\s*"([^"]+)"/)?.[1] || "";
+                return `${i + 1}. ${t}`;
+              }).join("\n");
+              updateContent(`${isZh ? "已拆解任务：" : "Tasks so far:"}\n\n${list}\n\n${isZh ? "继续生成中..." : "Generating..."}`);
+            }
+          }
         }
 
         if (content.includes("Error:") && content.trim().split("\n").length < 5) {
