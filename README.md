@@ -59,15 +59,11 @@ Describe   AI Gen    Gantt       Claude      Diff View   AI Gen
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/en/03-project-list.png" alt="Projects" /><br /><em>Project List</em></td>
+    <td><img src="docs/screenshots/en/03-project-list.png" alt="Projects" /><br /><em>Project List (Dark Theme)</em></td>
     <td><img src="docs/screenshots/en/05-scheme-detail.png" alt="Schemes" /><br /><em>AI-Generated Schemes with Collapsible Sections</em></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/09-schedule-gantt.png" alt="Schedule" /><br /><em>Task Schedule with Gantt Chart</em></td>
-    <td><img src="docs/screenshots/07-code-review-diff.png" alt="Code Review" /><br /><em>Code Review — File Tree & Diff Viewer</em></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/08-code-review-file.png" alt="Diff Viewer" /><br /><em>Syntax-Highlighted Diff with Inline Findings</em></td>
+    <td><img src="docs/screenshots/en/12-scheme-findings.png" alt="Review Findings" /><br /><em>Scheme Review — Inline Findings with AI Fix</em></td>
     <td><img src="docs/screenshots/en/06-settings.png" alt="Settings" /><br /><em>AI Provider & Per-Step Model Configuration</em></td>
   </tr>
   <tr>

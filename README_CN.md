@@ -59,15 +59,11 @@ Siege 将 Claude Code / Codex 包装成一个**完整的开发生命周期管理
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/zh/03-project-list.png" alt="项目列表" /><br /><em>项目列表</em></td>
+    <td><img src="docs/screenshots/zh/03-project-list.png" alt="项目列表" /><br /><em>项目列表（暗色主题）</em></td>
     <td><img src="docs/screenshots/zh/05-scheme-detail.png" alt="技术方案" /><br /><em>AI 生成的技术方案（手风琴分段展示）</em></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/09-schedule-gantt.png" alt="任务排期" /><br /><em>甘特图任务排期</em></td>
-    <td><img src="docs/screenshots/07-code-review-diff.png" alt="代码审查" /><br /><em>代码审查 — 文件树 & Diff 视图</em></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/08-code-review-file.png" alt="Diff 查看器" /><br /><em>语法高亮 Diff 及行内发现标注</em></td>
+    <td><img src="docs/screenshots/zh/12-scheme-findings.png" alt="方案审查" /><br /><em>方案审查 — 内联审查结果 + AI 修复</em></td>
     <td><img src="docs/screenshots/zh/06-settings.png" alt="设置" /><br /><em>AI 提供商 & 各步骤模型配置</em></td>
   </tr>
   <tr>
