@@ -75,8 +75,11 @@ export function getStepModel(
   overrideModel?: string
 ) {
   const { provider, model } = resolveStepConfig(step, overrideProvider, overrideModel);
+  // ACP/Codex are CLI engines, not SDK providers.
+  // For steps that only support SDK (review, test, etc.), fall back to
+  // the first configured SDK provider instead of throwing.
   if (provider === "acp" || provider === "codex-acp") {
-    throw new Error(`Step "${step}" resolved to ACP engine — use CLI path instead of SDK.`);
+    return getConfiguredModel(undefined, model);
   }
   return getConfiguredModel(provider as Provider, model);
 }
