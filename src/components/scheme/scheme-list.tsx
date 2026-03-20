@@ -246,7 +246,7 @@ export function SchemeList({
               readonly={readonly}
               onUpdate={handleUpdate}
               onDelete={handleDelete}
-              findings={reviewFindings.filter(f => f.targetId === scheme.id)}
+              findings={reviewFindings}
             />
           ))}
         </div>
