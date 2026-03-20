@@ -399,7 +399,17 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
   }
 
   // Default engine: Vercel AI SDK with tools
-  const configuredModel = getConfiguredModel();
+  let configuredModel;
+  try {
+    configuredModel = getConfiguredModel();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    db.update(scheduleItems)
+      .set({ status: "failed", progress: 0, executionLog: `Error: ${msg}` })
+      .where(eq(scheduleItems.id, itemId))
+      .run();
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
   const tools = { ...createProjectTools(cwd), ...createLspTools(cwd) };
 
   const responseStream = new ReadableStream({

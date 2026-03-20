@@ -31,7 +31,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const model = getConfiguredModel();
+  let model;
+  try {
+    model = getConfiguredModel();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
 
   try {
     const result = await generateText({

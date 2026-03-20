@@ -110,8 +110,16 @@ If the test file doesn't exist, create it first, then run it. Report pass/fail s
   const startTime = Date.now();
   const repoPath = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
 
+  let configuredModel;
   try {
-    const configuredModel = getConfiguredModel();
+    configuredModel = getConfiguredModel();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    db.update(testCases).set({ status: "failed" }).where(eq(testCases.id, caseId)).run();
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
+
+  try {
     const tools = createTestTools(repoPath);
 
     const result = await generateText({

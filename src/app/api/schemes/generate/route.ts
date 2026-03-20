@@ -247,7 +247,13 @@ export async function POST(req: NextRequest) {
   }
 
   // Default: Vercel AI SDK
-  const configuredModel = getConfiguredModel((provider as Provider) || undefined, model);
+  let configuredModel;
+  try {
+    configuredModel = getConfiguredModel((provider as Provider) || undefined, model);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
   const tools = createProjectTools(cwd);
 
   const responseStream = new ReadableStream({

@@ -34,7 +34,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Scheme not found" }, { status: 404 });
   }
 
-  const model = getConfiguredModel();
+  let model;
+  try {
+    model = getConfiguredModel();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
   const result = streamText({
     model,
     system: `You are a scheme editor. Output Markdown only. No conversation.

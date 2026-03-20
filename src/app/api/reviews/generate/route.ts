@@ -67,6 +67,12 @@ function buildReviewPrompt(
       ? `- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical"), filePath (string, path of the file this finding relates to), lineNumber (number, the line in the new version of the file)`
       : `- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical")`;
 
+  // Detect language from content
+  const hasChinese = /[\u4e00-\u9fff]/.test(itemsSummary);
+  const langInstruction = hasChinese
+    ? "\n\nIMPORTANT: Write all summary and finding content in Chinese (中文), matching the language of the input."
+    : "";
+
   return {
     system: `You are a code review engine. Output JSON only. No conversation.
 
@@ -79,7 +85,7 @@ Output a JSON object with:
 ${itemsSchema}
 - approved: boolean (false if any critical items)
 
-Output ONLY the JSON object. No other text before or after.`,
+Output ONLY the JSON object. No other text before or after.${langInstruction}`,
     prompt: `Plan: ${planName}\n\n${itemsSummary}`,
   };
 }
@@ -164,7 +170,13 @@ export async function POST(req: NextRequest) {
     .run();
 
   const { system, prompt } = buildReviewPrompt(type, plan.name, itemsToReview);
-  const aiModel = getConfiguredModel((provider !== "acp" && provider !== "codex-acp" ? provider : undefined) as Provider | undefined, model);
+  let aiModel;
+  try {
+    aiModel = getConfiguredModel((provider !== "acp" && provider !== "codex-acp" ? provider : undefined) as Provider | undefined, model);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
 
   const result = streamText({ model: aiModel, system, prompt });
 

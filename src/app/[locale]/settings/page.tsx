@@ -70,6 +70,8 @@ export default function SettingsPage({
   const [editUrl, setEditUrl] = useState("");
   const [editModel, setEditModel] = useState("");
   const [savingProvider, setSavingProvider] = useState(false);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<Record<string, boolean | null>>({});
 
   useEffect(() => {
     fetch("/api/ai-config").then((r) => r.json()).then(setAiConfig);
@@ -260,27 +262,59 @@ export default function SettingsPage({
                       </span>
                     )}
                     {status?.configured && !isEditing && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={async () => {
-                          await fetch(`/api/ai-config?provider=${prov.id}`, { method: "DELETE" });
-                          // Also clear model setting
-                          const newSettings = { ...settings };
-                          delete newSettings[`default_model_${prov.id}`];
-                          setSettings(newSettings);
-                          await fetch("/api/settings", {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ [`default_model_${prov.id}`]: "" }),
-                          });
-                          const res = await fetch("/api/ai-config");
-                          setAiConfig(await res.json());
-                        }}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                      >
-                        {isZh ? "清除" : "Clear"}
-                      </Button>
+                      <>
+                        {testResult[prov.id] === true && (
+                          <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                            {isZh ? "连接正常" : "OK"}
+                          </span>
+                        )}
+                        {testResult[prov.id] === false && (
+                          <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
+                            {isZh ? "连接失败" : "Failed"}
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={testingProvider === prov.id}
+                          onClick={async () => {
+                            setTestingProvider(prov.id);
+                            setTestResult((prev) => ({ ...prev, [prov.id]: null }));
+                            const res = await fetch("/api/ai-config/test", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ provider: prov.id }),
+                            });
+                            const data = await res.json();
+                            setTestResult((prev) => ({ ...prev, [prov.id]: data.success }));
+                            setTestingProvider(null);
+                          }}
+                        >
+                          {testingProvider === prov.id
+                            ? (isZh ? "测试中..." : "Testing...")
+                            : (isZh ? "测试连接" : "Test")}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            await fetch(`/api/ai-config?provider=${prov.id}`, { method: "DELETE" });
+                            const newSettings = { ...settings };
+                            delete newSettings[`default_model_${prov.id}`];
+                            setSettings(newSettings);
+                            await fetch("/api/settings", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ [`default_model_${prov.id}`]: "" }),
+                            });
+                            const res = await fetch("/api/ai-config");
+                            setAiConfig(await res.json());
+                          }}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        >
+                          {isZh ? "清除" : "Clear"}
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"

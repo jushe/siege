@@ -87,10 +87,16 @@ export async function POST(req: NextRequest) {
       fileContent = "(File could not be read)";
     }
 
-    const aiModel = getConfiguredModel(
-      (provider as Provider) || undefined,
-      model || undefined
-    );
+    let aiModel;
+    try {
+      aiModel = getConfiguredModel(
+        (provider as Provider) || undefined,
+        model || undefined
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: msg }, { status: 503 });
+    }
 
     const result = await generateText({
       model: aiModel,

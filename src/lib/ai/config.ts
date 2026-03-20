@@ -63,6 +63,12 @@ export function getConfiguredModel(provider?: Provider, model?: string) {
     process.env[ENV_KEY_MAP[resolvedProvider]] ||
     getSetting(`${resolvedProvider}_api_key`);
 
+  if (!apiKey && !baseURL) {
+    throw new Error(
+      `No API key configured for ${resolvedProvider}. Please configure an API key in Settings or set the ${ENV_KEY_MAP[resolvedProvider]} environment variable.`
+    );
+  }
+
   if (baseURL) config.baseURL = baseURL;
   if (apiKey) config.apiKey = apiKey;
 

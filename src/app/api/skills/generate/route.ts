@@ -127,7 +127,15 @@ Output the complete file content starting with the --- frontmatter block.`;
             }
           }
         } else {
-          const model = getConfiguredModel();
+          let model;
+          try {
+            model = getConfiguredModel();
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            controller.enqueue(encoder.encode(`\n__SKILL_ERROR__:${msg}`));
+            controller.close();
+            return;
+          }
           const result = streamText({ model, system: SYSTEM_PROMPT, prompt });
           for await (const chunk of result.textStream) {
             fullText += chunk;

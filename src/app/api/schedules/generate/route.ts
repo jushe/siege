@@ -141,7 +141,13 @@ Output the JSON array now:`;
     return new Response(responseStream, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
   }
 
-  const aiModel = getConfiguredModel((provider as Provider) || undefined, model);
+  let aiModel;
+  try {
+    aiModel = getConfiguredModel((provider as Provider) || undefined, model);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: msg }, { status: 503 });
+  }
   const result = streamText({
     model: aiModel,
     prompt: `<IMPORTANT>

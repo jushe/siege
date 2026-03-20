@@ -116,7 +116,18 @@ Use the provided tools to read the codebase, write/edit files, and run commands.
 }
 
 async function executeTask(itemId: string, cwd: string, prompt: string) {
-  const configuredModel = getConfiguredModel();
+  let configuredModel;
+  try {
+    configuredModel = getConfiguredModel();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const db = getDb();
+    db.update(scheduleItems)
+      .set({ status: "failed", progress: 0, executionLog: `Error: ${msg}` })
+      .where(eq(scheduleItems.id, itemId))
+      .run();
+    return;
+  }
   const tools = {
     listDir: tool({
       description: "List files and directories at a given path within the project",
