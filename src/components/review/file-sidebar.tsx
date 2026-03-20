@@ -182,18 +182,92 @@ function FileLeaf({
   );
 }
 
+const FILE_ICONS: Record<string, { label: string; color: string }> = {
+  ".ts": { label: "TS", color: "#3178c6" },
+  ".tsx": { label: "TX", color: "#3178c6" },
+  ".js": { label: "JS", color: "#f7df1e" },
+  ".jsx": { label: "JX", color: "#f7df1e" },
+  ".mjs": { label: "MJ", color: "#f7df1e" },
+  ".rs": { label: "RS", color: "#dea584" },
+  ".go": { label: "GO", color: "#00add8" },
+  ".py": { label: "PY", color: "#3572a5" },
+  ".rb": { label: "RB", color: "#cc342d" },
+  ".java": { label: "JA", color: "#b07219" },
+  ".kt": { label: "KT", color: "#a97bff" },
+  ".swift": { label: "SW", color: "#f05138" },
+  ".c": { label: "C", color: "#555555" },
+  ".h": { label: "H", color: "#555555" },
+  ".cpp": { label: "C+", color: "#f34b7d" },
+  ".cc": { label: "C+", color: "#f34b7d" },
+  ".cs": { label: "C#", color: "#178600" },
+  ".php": { label: "PH", color: "#4f5d95" },
+  ".lua": { label: "LU", color: "#000080" },
+  ".zig": { label: "ZG", color: "#ec915c" },
+  ".vue": { label: "VU", color: "#41b883" },
+  ".svelte": { label: "SV", color: "#ff3e00" },
+  ".html": { label: "HT", color: "#e34c26" },
+  ".css": { label: "CS", color: "#563d7c" },
+  ".scss": { label: "SC", color: "#c6538c" },
+  ".json": { label: "{ }", color: "#a97bff" },
+  ".yaml": { label: "YM", color: "#cb171e" },
+  ".yml": { label: "YM", color: "#cb171e" },
+  ".toml": { label: "TM", color: "#9c4221" },
+  ".xml": { label: "XM", color: "#0060ac" },
+  ".md": { label: "MD", color: "#888888" },
+  ".txt": { label: "TX", color: "#888888" },
+  ".sh": { label: "SH", color: "#89e051" },
+  ".bash": { label: "SH", color: "#89e051" },
+  ".zsh": { label: "SH", color: "#89e051" },
+  ".fish": { label: "SH", color: "#89e051" },
+  ".ps1": { label: "PS", color: "#012456" },
+  ".sql": { label: "SQ", color: "#e38c00" },
+  ".graphql": { label: "GQ", color: "#e10098" },
+  ".proto": { label: "PB", color: "#888888" },
+  ".dockerfile": { label: "DK", color: "#384d54" },
+  ".dockerignore": { label: "DK", color: "#384d54" },
+  ".env": { label: "EN", color: "#ecd53f" },
+  ".gitignore": { label: "GI", color: "#f05032" },
+  ".lock": { label: "LK", color: "#888888" },
+  ".wasm": { label: "WA", color: "#654ff0" },
+  ".sol": { label: "SO", color: "#aa6746" },
+  ".r": { label: "R", color: "#198ce7" },
+  ".dart": { label: "DA", color: "#00b4ab" },
+  ".ex": { label: "EX", color: "#6e4a7e" },
+  ".exs": { label: "EX", color: "#6e4a7e" },
+  ".erl": { label: "ER", color: "#b83998" },
+  ".hs": { label: "HS", color: "#5e5086" },
+  ".ml": { label: "ML", color: "#3be133" },
+  ".clj": { label: "CJ", color: "#db5855" },
+  ".scala": { label: "SC", color: "#c22d40" },
+};
+
+function getFileIcon(name: string): { label: string; color: string } {
+  const lower = name.toLowerCase();
+  // Special filenames
+  if (lower === "dockerfile" || lower.startsWith("dockerfile.")) return FILE_ICONS[".dockerfile"]!;
+  if (lower === ".gitignore") return FILE_ICONS[".gitignore"]!;
+  if (lower === ".env" || lower.startsWith(".env.")) return FILE_ICONS[".env"]!;
+  const ext = lower.slice(lower.lastIndexOf("."));
+  return FILE_ICONS[ext] || { label: "··", color: "#888888" };
+}
+
 function FileIcon({ name }: { name: string }) {
+  const { label, color } = getFileIcon(name);
+
+  return (
+    <span
+      className="inline-flex items-center justify-center w-5 h-3.5 shrink-0 rounded text-[8px] font-bold leading-none"
+      style={{ background: color, color: "#fff", opacity: 0.9 }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function FileIconLegacy({ name }: { name: string }) {
   const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
   let color = "text-gray-400";
   if ([".ts", ".tsx"].includes(ext)) color = "text-blue-500";
-  else if ([".js", ".jsx"].includes(ext)) color = "text-yellow-500";
-  else if ([".rs"].includes(ext)) color = "text-orange-600";
-  else if ([".go"].includes(ext)) color = "text-cyan-500";
-  else if ([".py"].includes(ext)) color = "text-green-500";
-  else if ([".json", ".yaml", ".yml", ".toml"].includes(ext)) color = "text-purple-500";
-  else if ([".md"].includes(ext)) color = "text-gray-500";
-  else if ([".css", ".scss"].includes(ext)) color = "text-pink-500";
-  else if ([".sh", ".bash"].includes(ext)) color = "text-green-600";
 
   return (
     <svg className={`w-3.5 h-3.5 shrink-0 ${color}`} viewBox="0 0 20 20" fill="currentColor">
