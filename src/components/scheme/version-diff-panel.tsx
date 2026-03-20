@@ -39,22 +39,22 @@ export function VersionDiffPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b mb-3">
-        <div className="text-xs text-gray-500">
-          <span className="font-mono font-medium text-gray-700">
+      <div className="flex items-center justify-between pb-3 mb-3" style={{ borderBottom: "1px solid var(--card-border)" }}>
+        <div className="text-xs" style={{ color: "var(--muted)" }}>
+          <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
             {oldLabel}
           </span>
           {" → "}
-          <span className="font-mono font-medium text-gray-700">
+          <span className="font-mono font-medium" style={{ color: "var(--foreground)" }}>
             {newLabel}
           </span>
         </div>
         {!isIdentical && (
           <div className="flex items-center gap-3 text-xs font-mono">
-            <span className="text-green-600">
+            <span style={{ color: "#4ade80" }}>
               {t("additions", { count: stats.additions })}
             </span>
-            <span className="text-red-600">
+            <span style={{ color: "#f87171" }}>
               {t("deletions", { count: stats.deletions })}
             </span>
           </div>
@@ -63,51 +63,50 @@ export function VersionDiffPanel({
 
       {/* Diff content */}
       {isIdentical ? (
-        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+        <div className="flex-1 flex items-center justify-center text-sm" style={{ color: "var(--muted)" }}>
           {t("noDiff")}
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto border rounded bg-gray-50 font-mono text-xs leading-relaxed">
+        <div className="flex-1 overflow-y-auto border rounded font-mono text-xs leading-relaxed"
+          style={{ background: "var(--background)", borderColor: "var(--card-border)" }}>
           {diffLines.map((line, i) => (
             <div
               key={i}
-              className={`flex ${
-                line.type === "add"
-                  ? "bg-green-50"
+              className="flex"
+              style={{
+                background: line.type === "add"
+                  ? "rgba(74, 222, 128, 0.1)"
                   : line.type === "remove"
-                    ? "bg-red-50"
-                    : ""
-              }`}
+                    ? "rgba(248, 113, 113, 0.1)"
+                    : undefined,
+              }}
             >
-              {/* Old line number */}
-              <span className="w-10 shrink-0 text-right pr-2 py-px text-gray-400 select-none border-r border-gray-200">
+              <span className="w-10 shrink-0 text-right pr-2 py-px select-none"
+                style={{ color: "var(--muted)", borderRight: "1px solid var(--card-border)" }}>
                 {line.oldLineNumber ?? ""}
               </span>
-              {/* New line number */}
-              <span className="w-10 shrink-0 text-right pr-2 py-px text-gray-400 select-none border-r border-gray-200">
+              <span className="w-10 shrink-0 text-right pr-2 py-px select-none"
+                style={{ color: "var(--muted)", borderRight: "1px solid var(--card-border)" }}>
                 {line.newLineNumber ?? ""}
               </span>
-              {/* Type indicator */}
               <span
-                className={`w-5 shrink-0 text-center py-px select-none ${
-                  line.type === "add"
-                    ? "text-green-600"
-                    : line.type === "remove"
-                      ? "text-red-600"
-                      : "text-gray-300"
-                }`}
+                className="w-5 shrink-0 text-center py-px select-none"
+                style={{
+                  color: line.type === "add" ? "#4ade80"
+                    : line.type === "remove" ? "#f87171"
+                    : "var(--card-border)",
+                }}
               >
                 {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
               </span>
-              {/* Content */}
               <span
-                className={`flex-1 py-px pr-3 whitespace-pre-wrap break-all ${
-                  line.type === "add"
-                    ? "text-green-800"
-                    : line.type === "remove"
-                      ? "text-red-800 line-through"
-                      : ""
-                }`}
+                className="flex-1 py-px pr-3 whitespace-pre-wrap break-all"
+                style={{
+                  color: line.type === "add" ? "#4ade80"
+                    : line.type === "remove" ? "#f87171"
+                    : "var(--foreground)",
+                  textDecoration: line.type === "remove" ? "line-through" : undefined,
+                }}
               >
                 {line.text || " "}
               </span>
