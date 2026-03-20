@@ -11,9 +11,10 @@ export async function POST(req: NextRequest) {
   const [body, errRes] = await parseJsonBody(req);
   if (errRes) return errRes;
 
-  const { schemeId, message } = body as {
+  const { schemeId, message, sectionOnly } = body as {
     schemeId: string;
     message: string;
+    sectionOnly?: boolean;
   };
 
   if (!schemeId || !message) {
@@ -41,15 +42,26 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: msg }, { status: 503 });
   }
-  const result = streamText({
-    model,
-    system: `You are a scheme editor. Output Markdown only. No conversation.
+  // Detect if this is a section-level edit (contains section heading + content)
+  const isSectionEdit = /当前该段落/.test(message) || /当前该段落内容/.test(message);
+
+  const system = isSectionEdit
+    ? `You are a scheme section editor. Output Markdown only. No conversation.
+
+CRITICAL: You are editing ONE SECTION of a larger scheme. Output ONLY the modified section content (without the heading). Do NOT output the full scheme. Do NOT add explanations.`
+    : `You are a scheme editor. Output Markdown only. No conversation.
 
 CRITICAL: Do NOT ask questions, request access, or use tools. Just modify the scheme as requested.
 
 Apply the requested changes and return the COMPLETE updated scheme in Markdown.
-Do NOT add explanations or comments about what you changed — just output the full updated scheme.`,
-    prompt: `## Current Scheme\n\n${scheme.content}\n\n## Modification Request\n\n${message}`,
+Do NOT add explanations or comments about what you changed — just output the full updated scheme.`;
+
+  const result = streamText({
+    model,
+    system,
+    prompt: isSectionEdit
+      ? message
+      : `## Current Scheme\n\n${scheme.content}\n\n## Modification Request\n\n${message}`,
   });
 
   // Save after stream completes
@@ -63,7 +75,7 @@ Do NOT add explanations or comments about what you changed — just output the f
         fullText += chunk;
         controller.enqueue(encoder.encode(chunk));
       }
-      if (fullText.trim()) {
+      if (fullText.trim() && !sectionOnly) {
         saveSchemeVersion(schemeId);
         const db = getDb();
         db.update(schemes)

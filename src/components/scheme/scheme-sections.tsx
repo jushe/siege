@@ -54,6 +54,15 @@ function splitIntoSections(content: string): { preamble: string; sections: Secti
   return { preamble: preamble.trim(), sections };
 }
 
+function joinSections(preamble: string, sections: Section[]): string {
+  let result = preamble;
+  for (const s of sections) {
+    result += s.heading + "\n" + s.content;
+    if (!result.endsWith("\n")) result += "\n";
+  }
+  return result.trim();
+}
+
 interface Finding {
   id: string;
   title: string;
@@ -99,43 +108,55 @@ export function SchemeSections({
     }
   };
 
-  const handleFindingFix = async (finding: Finding, section: Section) => {
-    if (!schemeId) return;
-    startLoading(isZh ? "AI 正在修复..." : "AI fixing...");
-    try {
-      const res = await fetch("/api/schemes/chat", {
-        method: "POST",
+  const applySectionReplace = async (sectionIndex: number, newSectionContent: string) => {
+    // Replace the section content and save to DB
+    const updatedSections = sections.map((s, i) =>
+      i === sectionIndex ? { ...s, content: newSectionContent } : s
+    );
+    const newFullContent = joinSections(preamble, updatedSections);
+
+    // Save to DB
+    if (schemeId) {
+      await fetch(`/api/schemes/${schemeId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          schemeId,
-          message: `请根据以下审查意见修复方案中「${section.title}」段落：\n\n**${finding.title}**\n${finding.content || ""}\n\n当前该段落内容：\n${section.heading}\n${section.content}`,
-        }),
+        body: JSON.stringify({ content: newFullContent }),
       });
-      if (res.ok && res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let aiContent = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          aiContent += decoder.decode(value, { stream: true });
-          updateContent(aiContent);
-        }
-        await new Promise((r) => setTimeout(r, 1000));
-        const schemeRes = await fetch(`/api/schemes/${schemeId}`);
-        if (schemeRes.ok) {
-          const updated = await schemeRes.json();
-          if (updated.content && onContentUpdated) {
-            onContentUpdated(updated.content);
-          }
-        }
-        stopLoading(isZh ? "修复完成" : "Fixed");
-      } else {
-        stopLoading(isZh ? "修复失败" : "Fix failed");
-      }
-    } catch {
-      stopLoading(isZh ? "修复失败" : "Fix failed");
     }
+    if (onContentUpdated) onContentUpdated(newFullContent);
+  };
+
+  const streamSectionEdit = async (prompt: string, sectionIndex: number): Promise<boolean> => {
+    if (!schemeId) return false;
+    const res = await fetch("/api/schemes/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ schemeId, message: prompt, sectionOnly: true }),
+    });
+    if (!res.ok || !res.body) return false;
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let aiContent = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      aiContent += decoder.decode(value, { stream: true });
+      updateContent(aiContent);
+    }
+
+    if (aiContent.trim()) {
+      await applySectionReplace(sectionIndex, aiContent.trim());
+      return true;
+    }
+    return false;
+  };
+
+  const handleFindingFix = async (finding: Finding, section: Section, sectionIndex: number) => {
+    startLoading(isZh ? "AI 正在修复..." : "AI fixing...");
+    const prompt = `请根据以下审查意见修复方案中「${section.title}」段落：\n\n**${finding.title}**\n${finding.content || ""}\n\n当前该段落内容：\n${section.heading}\n${section.content}`;
+    const ok = await streamSectionEdit(prompt, sectionIndex);
+    stopLoading(ok ? (isZh ? "修复完成" : "Fixed") : (isZh ? "修复失败" : "Fix failed"));
   };
 
   const handleSectionSuggest = async (sectionIndex: number) => {
@@ -147,44 +168,9 @@ export function SchemeSections({
     setEditingIndex(null);
 
     startLoading(isZh ? "AI 修改段落中..." : "AI modifying section...");
-
-    try {
-      const res = await fetch("/api/schemes/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          schemeId,
-          message: `请只修改方案中「${section.title}」这个段落的内容。修改指令：${instruction}\n\n当前该段落的内容：\n${section.heading}\n${section.content}`,
-        }),
-      });
-
-      if (res.ok && res.body) {
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let aiContent = "";
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          aiContent += decoder.decode(value, { stream: true });
-          updateContent(aiContent);
-        }
-
-        // Refetch the updated scheme
-        await new Promise((r) => setTimeout(r, 1000));
-        const schemeRes = await fetch(`/api/schemes/${schemeId}`);
-        if (schemeRes.ok) {
-          const updated = await schemeRes.json();
-          if (updated.content && onContentUpdated) {
-            onContentUpdated(updated.content);
-          }
-        }
-        stopLoading(isZh ? "段落修改完成" : "Section modified");
-      } else {
-        stopLoading(isZh ? "修改失败" : "Failed");
-      }
-    } catch {
-      stopLoading(isZh ? "修改失败" : "Failed");
-    }
+    const prompt = `请只修改方案中「${section.title}」这个段落的内容。修改指令：${instruction}\n\n当前该段落的内容：\n${section.heading}\n${section.content}`;
+    const ok = await streamSectionEdit(prompt, sectionIndex);
+    stopLoading(ok ? (isZh ? "段落修改完成" : "Section modified") : (isZh ? "修改失败" : "Failed"));
   };
 
   return (
@@ -266,7 +252,7 @@ export function SchemeSections({
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleFindingFix(f, section);
+                                    handleFindingFix(f, section, i);
                                   }}
                                   className="shrink-0 px-2 py-0.5 rounded text-[10px] font-medium hover:opacity-80"
                                   style={{ background: s.border, color: s.text }}
