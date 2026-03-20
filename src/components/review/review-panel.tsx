@@ -72,9 +72,13 @@ export function ReviewPanel({
 }: ReviewPanelProps) {
   const t = useTranslations();
   const { startLoading, updateContent, stopLoading } = useGlobalLoading();
+  // Note: global loading is still used for handleFix
   const [reviews, setReviews] = useState<Review[]>([]);
   const [generating, setGenerating] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [streamContent, setStreamContent] = useState("");
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsedRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [snapshots, setSnapshots] = useState<FileSnapshot[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"diff" | "list">("diff");
@@ -122,19 +126,16 @@ export function ReviewPanel({
 
   const startPolling = () => {
     if (pollRef.current) clearInterval(pollRef.current);
-    let elapsed = 0;
+    startElapsedTimer();
+    setStreamContent(isZh ? "审查进行中，等待结果..." : "Review in progress, waiting for results...");
     pollRef.current = setInterval(async () => {
-      elapsed += 3;
-      updateContent(isZh
-        ? `正在审查中，已等待 ${elapsed} 秒...\n\n审查完成后将自动显示结果。`
-        : `Reviewing... ${elapsed}s elapsed.\n\nResults will appear automatically.`);
       const data = await fetchReviews();
       const latest = data[data.length - 1];
       if (latest && latest.status !== "in_progress") {
         if (pollRef.current) clearInterval(pollRef.current);
         pollRef.current = null;
+        stopElapsedTimer();
         setGenerating(false);
-        stopLoading(isZh ? "审查完成" : "Review completed");
         onPlanStatusChange();
       }
     }, 3000);
@@ -142,14 +143,30 @@ export function ReviewPanel({
 
   const isZh = t("common.back") === "返回";
 
+  const startElapsedTimer = () => {
+    setElapsed(0);
+    setStreamContent("");
+    if (elapsedRef.current) clearInterval(elapsedRef.current);
+    elapsedRef.current = setInterval(() => {
+      setElapsed((prev) => prev + 1);
+    }, 1000);
+  };
+
+  const stopElapsedTimer = () => {
+    if (elapsedRef.current) {
+      clearInterval(elapsedRef.current);
+      elapsedRef.current = null;
+    }
+  };
+
   const handleGenerate = async () => {
     setGenerating(true);
-    startLoading(isZh ? "AI 正在审查..." : "AI reviewing...");
+    startElapsedTimer();
     try {
       const res = await fetch("/api/reviews/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, type }),
+        body: JSON.stringify({ planId, type, ...(reviewProvider && { provider: reviewProvider }) }),
       });
 
       if (res.ok && res.body) {
@@ -160,15 +177,16 @@ export function ReviewPanel({
           const { done, value } = await reader.read();
           if (done) break;
           content += decoder.decode(value, { stream: true });
-          updateContent(content);
+          setStreamContent(content);
         }
       }
 
       await fetchReviews();
       onPlanStatusChange();
-      stopLoading(isZh ? "审查完成" : "Review completed");
+      stopElapsedTimer();
       setGenerating(false);
     } catch {
+      stopElapsedTimer();
       setGenerating(false);
     }
   };
@@ -183,6 +201,7 @@ export function ReviewPanel({
   };
 
   const [fixingItem, setFixingItem] = useState<string | null>(null);
+  const [reviewProvider, setReviewProvider] = useState("");
 
   const handleFix = async (item: ReviewItem) => {
     if (!item.targetId || fixingItem) return;
@@ -255,33 +274,58 @@ export function ReviewPanel({
           {type === "scheme" ? t("review.schemeReview") : t("review.codeReview")}
         </h4>
         {(canReview || isInProgress) && (
-          <Button onClick={handleGenerate} disabled={generating} size="sm">
-            {generating
-              ? t("common.loading")
-              : latestReview
-                ? t("review.reReview")
-                : t("review.runReview")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <select
+              value={reviewProvider}
+              onChange={(e) => setReviewProvider(e.target.value)}
+              disabled={generating}
+              className="rounded-md border border-gray-300 px-2 py-1.5 text-xs"
+            >
+              <option value="">{isZh ? "默认 AI" : "Default AI"}</option>
+              <option value="acp">Claude Code (ACP)</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="openai">OpenAI</option>
+              <option value="glm">GLM</option>
+            </select>
+            <Button onClick={handleGenerate} disabled={generating} size="sm">
+              {generating
+                ? t("common.loading")
+                : latestReview
+                  ? t("review.reReview")
+                  : t("review.runReview")}
+            </Button>
+          </div>
         )}
       </div>
 
       {/* Progress indicator */}
       {generating && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-          <div className="flex items-center gap-2">
-            <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-            <span className="text-sm font-medium text-blue-700">
-              {isZh ? "AI 正在审查方案，请稍候..." : "AI is reviewing, please wait..."}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <span className="text-sm font-medium text-blue-700">
+                {isZh ? "AI 正在审查中..." : "AI reviewing..."}
+              </span>
+            </div>
+            <span className="text-xs font-mono text-blue-500">
+              {elapsed}s
             </span>
           </div>
-          <p className="text-xs text-blue-500 mt-2">
-            {isZh
-              ? "审查需要 1-2 分钟，完成后自动显示结果。"
-              : "Review takes 1-2 minutes. Results will appear automatically."}
-          </p>
+          {streamContent ? (
+            <div className="mt-3 max-h-40 overflow-y-auto text-xs font-mono text-blue-700 bg-blue-100/50 rounded p-2 whitespace-pre-wrap">
+              {streamContent.slice(-500)}
+            </div>
+          ) : (
+            <p className="text-xs text-blue-500 mt-2">
+              {isZh
+                ? "等待 AI 响应..."
+                : "Waiting for AI response..."}
+            </p>
+          )}
         </div>
       )}
 
