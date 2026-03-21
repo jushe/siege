@@ -276,14 +276,14 @@ export function ScheduleView({
     setRunDialogItem(item);
   };
 
-  const handleExecuteItem = async (itemId: string, skills: string[] = [], progressLabel?: string) => {
+  const handleExecuteItem = async (itemId: string, skills: string[] = [], progressLabel?: string, provider?: string, model?: string) => {
     setExecuting(itemId);
     startLoading(progressLabel || (isZh ? "AI 正在执行任务..." : "AI executing task..."));
     try {
       const res = await fetch("/api/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ itemId, skills }),
+        body: JSON.stringify({ itemId, skills, ...(provider && { provider }), ...(model && { model }) }),
       });
 
       if (res.ok && res.body) {
@@ -606,7 +606,7 @@ export function ScheduleView({
         <RunTaskDialog
           open={!!runDialogItem}
           onClose={() => setRunDialogItem(null)}
-          onRun={(skills) => handleExecuteItem(runDialogItem.id, skills)}
+          onRun={(skills, provider, model) => handleExecuteItem(runDialogItem.id, skills, undefined, provider, model)}
           taskTitle={runDialogItem.title}
         />
       )}

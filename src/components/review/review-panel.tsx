@@ -10,6 +10,7 @@ import { computeDiffStats } from "@/lib/diff";
 import { FileSidebar } from "./file-sidebar";
 import { DiffViewer } from "./diff-viewer";
 import { severityIcons, FileStackIcon, CodeIcon, SearchIcon, RefreshIcon, HourglassIcon, BarChartIcon, ClipboardIcon, WrenchIcon, CheckIcon, type IconProps } from "@/components/ui/icons";
+import { ProviderModelSelect } from "@/components/ui/provider-model-select";
 
 interface ReviewComment {
   id: string;
@@ -193,7 +194,7 @@ export function ReviewPanel({
       const res = await fetch("/api/reviews/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, type, ...(reviewProvider && { provider: reviewProvider }) }),
+        body: JSON.stringify({ planId, type, ...(reviewProvider && { provider: reviewProvider }), ...(reviewModel && { model: reviewModel }) }),
       });
 
       if (!res.ok) {
@@ -243,6 +244,7 @@ export function ReviewPanel({
   const [fixPromptItem, setFixPromptItem] = useState<ReviewItem | null>(null);
   const [fixUserNote, setFixUserNote] = useState("");
   const [reviewProvider, setReviewProvider] = useState("");
+  const [reviewModel, setReviewModel] = useState("");
 
   const handleFix = async (item: ReviewItem, userNote?: string) => {
     if (!item.targetId || fixingItem) return;
@@ -321,19 +323,14 @@ export function ReviewPanel({
         </h4>
         {(canReview || isInProgress) && (
           <div className="flex items-center gap-2">
-            <select
-              value={reviewProvider}
-              onChange={(e) => setReviewProvider(e.target.value)}
+            <ProviderModelSelect
+              provider={reviewProvider}
+              model={reviewModel}
+              onProviderChange={setReviewProvider}
+              onModelChange={setReviewModel}
               disabled={generating}
-              className="rounded-md border px-2 py-1.5 text-xs"
-              style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-            >
-              <option value="">{isZh ? "默认 AI" : "Default AI"}</option>
-              <option value="acp">Claude Code (ACP)</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="openai">OpenAI</option>
-              <option value="glm">GLM</option>
-            </select>
+              compact
+            />
             <Button onClick={handleGenerate} disabled={generating} size="sm">
               {generating
                 ? <><HourglassIcon size={14} className="inline-block align-[-2px]" /> {t("common.loading")}</>
