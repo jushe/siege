@@ -445,34 +445,19 @@ export function ReviewPanel({
               </>
             )}
             {taskList.length > 0 && (viewMode === "diff" || !latestReview) && (
-              <>
-                <span className="w-px h-5 mx-1" style={{ background: "var(--card-border)" }} />
-                <button
-                  onClick={() => { setSelectedTask(null); setSelectedFile(null); }}
-                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${!selectedTask ? "ring-1" : ""}`}
-                  style={{
-                    background: !selectedTask ? "var(--foreground)" : "var(--card-border)",
-                    color: !selectedTask ? "var(--background)" : "var(--muted)",
-                    ...(selectedTask ? {} : { ringColor: "var(--foreground)" }),
-                  }}
-                >
-                  {isZh ? "全部" : "All"} ({snapshots.length})
-                </button>
+              <select
+                value={selectedTask || ""}
+                onChange={(e) => { setSelectedTask(e.target.value || null); setSelectedFile(null); }}
+                className="rounded-md border px-2 py-1.5 text-xs"
+                style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+              >
+                <option value="">{isZh ? "全部任务" : "All Tasks"} ({filteredSnapshots.length})</option>
                 {taskList.map((task) => (
-                  <button
-                    key={task.id}
-                    onClick={() => { setSelectedTask(task.id); setSelectedFile(null); }}
-                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${selectedTask === task.id ? "ring-1" : ""}`}
-                    style={{
-                      background: selectedTask === task.id ? "var(--foreground)" : "var(--card-border)",
-                      color: selectedTask === task.id ? "var(--background)" : "var(--muted)",
-                      ...(selectedTask === task.id ? { ringColor: "var(--foreground)" } : {}),
-                    }}
-                  >
+                  <option key={task.id} value={task.id}>
                     #{task.order} {task.title} ({task.fileCount})
-                  </button>
+                  </option>
                 ))}
-              </>
+              </select>
             )}
           </div>
 
@@ -546,53 +531,14 @@ export function ReviewPanel({
                     const hasMultipleTasks = sorted.length > 1 || (sorted.length === 1 && sorted[0].order !== 999);
 
                     return sorted.map((group) => (
-                      <div key={group.title}>
-                        {hasMultipleTasks && (
-                          <div className="text-[11px] font-medium mt-3 mb-1 px-1" style={{ color: "var(--muted)" }}>
-                            #{group.order} {group.title}
-                            <span className="ml-1 font-normal">({group.items.length})</span>
-                          </div>
-                        )}
-                        {group.items.map((item) => (
-                          <div
-                            key={item.id}
-                            className={`rounded-lg border p-3 mb-2 ${
-                              item.resolved
-                                ? "opacity-60"
-                                : severityColors[item.severity] || severityColors.info
-                            }`}
-                            style={item.resolved ? { background: "var(--background)", borderColor: "var(--card-border)" } : undefined}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <StatusBadge status={item.severity} label={item.severity} />
-                                <span className="font-medium text-sm"><SeverityIcon severity={item.severity} /> {item.title}</span>
-                                {item.filePath && (
-                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--muted)" }}>
-                                    {item.filePath.split("/").pop()}{item.lineNumber ? `:${item.lineNumber}` : ""}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex gap-1">
-                                <button
-                                  onClick={() => handleResolve(item.id, !item.resolved)}
-                                  className="text-xs px-2 py-1 rounded"
-                                  style={item.resolved
-                                    ? { background: "var(--card-border)", color: "var(--muted)" }
-                                    : { background: "rgba(255,255,255,0.5)", color: "var(--foreground)" }}
-                                >
-                                  {item.resolved ? <><CheckIcon size={12} className="inline-block align-[-1px]" /> {t("review.resolved")}</> : t("review.resolve")}
-                                </button>
-                              </div>
-                            </div>
-                            {item.content && (
-                              <div className="mt-2 text-sm">
-                                <MarkdownRenderer content={item.content} />
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                      <FindingsGroup
+                        key={group.title}
+                        group={group}
+                        hasMultipleTasks={hasMultipleTasks}
+                        isZh={isZh}
+                        severityColors={severityColors}
+                        onResolve={handleResolve}
+                      />
                     ));
                   })()}
                 </>
@@ -713,6 +659,88 @@ export function ReviewPanel({
           {t("review.noReview")}
         </p>
       ) : null}
+    </div>
+  );
+}
+
+/** Collapsible findings group by task */
+function FindingsGroup({
+  group,
+  hasMultipleTasks,
+  isZh,
+  severityColors,
+  onResolve,
+}: {
+  group: { title: string; order: number; items: ReviewItem[] };
+  hasMultipleTasks: boolean;
+  isZh: boolean;
+  severityColors: Record<string, string>;
+  onResolve: (id: string, resolved: boolean) => void;
+}) {
+  const [expanded, setExpanded] = useState(!hasMultipleTasks || group.items.some(i => !i.resolved));
+  const unresolvedCount = group.items.filter(i => !i.resolved).length;
+
+  return (
+    <div>
+      {hasMultipleTasks && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full flex items-center gap-2 text-left text-xs font-medium mt-3 mb-1 px-1 py-1 rounded hover:opacity-80"
+          style={{ color: "var(--muted)" }}
+        >
+          <svg
+            className={`w-3 h-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
+            viewBox="0 0 20 20" fill="currentColor"
+          >
+            <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+          </svg>
+          <span>#{group.order} {group.title}</span>
+          <span className="font-normal">({group.items.length})</span>
+          {unresolvedCount > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "#7f1d1d", color: "#fca5a5" }}>
+              {unresolvedCount}
+            </span>
+          )}
+          {unresolvedCount === 0 && (
+            <span className="text-[10px] text-green-600">✓</span>
+          )}
+        </button>
+      )}
+      {expanded && group.items.map((item) => (
+        <div
+          key={item.id}
+          className={`rounded-lg border p-3 mb-2 ${
+            item.resolved ? "opacity-60" : severityColors[item.severity] || severityColors.info
+          }`}
+          style={item.resolved ? { background: "var(--background)", borderColor: "var(--card-border)" } : undefined}
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <StatusBadge status={item.severity} label={item.severity} />
+              <span className="font-medium text-sm"><SeverityIcon severity={item.severity} /> {item.title}</span>
+              {item.filePath && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--muted)" }}>
+                  {item.filePath.split("/").pop()}{item.lineNumber ? `:${item.lineNumber}` : ""}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => onResolve(item.id, !item.resolved)}
+              className="text-xs px-2 py-1 rounded shrink-0"
+              style={item.resolved
+                ? { background: "var(--card-border)", color: "var(--muted)" }
+                : { background: "rgba(255,255,255,0.5)", color: "var(--foreground)" }}
+            >
+              {item.resolved ? <><CheckIcon size={12} className="inline-block align-[-1px]" /> {isZh ? "已解决" : "Resolved"}</> : (isZh ? "标记解决" : "Resolve")}
+            </button>
+          </div>
+          {item.content && (
+            <div className="mt-2 text-sm">
+              <MarkdownRenderer content={item.content} />
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
