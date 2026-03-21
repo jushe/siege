@@ -249,12 +249,32 @@ export async function POST(req: NextRequest) {
 
       // Parse and save review
       try {
-        const jsonStr = fullText.startsWith("{") ? fullText : fullText.match(/\{[\s\S]*\}/)?.[0];
+        // Try multiple JSON extraction strategies
         let parsed: any = null;
-        try { if (jsonStr) parsed = JSON.parse(jsonStr); } catch {}
+        const trimmed = fullText.trim();
+        // 1. Direct parse
+        try { parsed = JSON.parse(trimmed); } catch {}
+        // 2. Strip markdown code fences
+        if (!parsed) {
+          const fenced = trimmed.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "");
+          try { parsed = JSON.parse(fenced); } catch {}
+        }
+        // 3. Extract first {...} block (non-greedy by finding matching braces)
+        if (!parsed) {
+          const start = trimmed.indexOf("{");
+          if (start >= 0) {
+            let depth = 0;
+            let end = start;
+            for (let i = start; i < trimmed.length; i++) {
+              if (trimmed[i] === "{") depth++;
+              else if (trimmed[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
+            }
+            try { parsed = JSON.parse(trimmed.slice(start, end)); } catch {}
+          }
+        }
 
         const db = getDb();
-        if (parsed) {
+        if (parsed && parsed.summary) {
           const finalStatus = parsed.approved ? "approved" : "changes_requested";
           db.update(reviews)
             .set({ status: finalStatus, content: parsed.summary, updatedAt: new Date().toISOString() })
@@ -306,8 +326,12 @@ export async function POST(req: NextRequest) {
               .run();
           }
         } else {
+          // Don't store raw JSON as display content
+          const fallbackContent = (fullText.trim().startsWith("{") || fullText.trim().startsWith("["))
+            ? "AI 返回了无法解析的结果，请重试。/ AI returned unparseable result, please retry."
+            : fullText.trim() || "AI 未返回有效的审查结果，请重试。/ AI returned no valid review output, please retry.";
           db.update(reviews)
-            .set({ status: "changes_requested", content: fullText.trim() || "AI 未返回有效的审查结果，请重试。/ AI returned no valid review output, please retry.", updatedAt: new Date().toISOString() })
+            .set({ status: "changes_requested", content: fallbackContent, updatedAt: new Date().toISOString() })
             .where(eq(reviews.id, reviewId))
             .run();
         }
