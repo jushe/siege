@@ -391,15 +391,10 @@ export function ReviewPanel({
         afterItemId: item.targetId || undefined,
       }),
     });
-    // Mark finding as resolved
-    await fetch(`/api/review-items/${item.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ resolved: true }),
-    });
-    const fresh = await fetchReviews();
+    // Don't mark resolved — wait for fix task to complete
+    // resolveRelatedFindings() in execute route will auto-resolve when done
+    await fetchReviews();
     onPlanStatusChange();
-    checkAllResolved(fresh, item.id);
   };
 
   const canReview =
@@ -1006,13 +1001,12 @@ function FindingsGroup({
               )}
             </div>
             {item.resolved ? (
-              <span className="text-xs px-2 py-1 rounded shrink-0" style={{
-                background: acceptedIds.has(item.id) ? "rgba(124,58,237,0.15)" : "var(--card-border)",
-                color: acceptedIds.has(item.id) ? "#c4b5fd" : "var(--muted)",
-              }}>
-                <CheckIcon size={12} className="inline-block align-[-1px]" /> {acceptedIds.has(item.id)
-                  ? (isZh ? "已加入排期" : "Added to Schedule")
-                  : (isZh ? "已忽略" : "Dismissed")}
+              <span className="text-xs px-2 py-1 rounded shrink-0" style={{ background: "var(--card-border)", color: "var(--muted)" }}>
+                <CheckIcon size={12} className="inline-block align-[-1px]" /> {isZh ? "已解决" : "Resolved"}
+              </span>
+            ) : acceptedIds.has(item.id) ? (
+              <span className="text-xs px-2 py-1 rounded shrink-0" style={{ background: "rgba(124,58,237,0.15)", color: "#c4b5fd" }}>
+                {isZh ? "已加入排期" : "Scheduled"}
               </span>
             ) : (
               <button
@@ -1029,7 +1023,7 @@ function FindingsGroup({
               <MarkdownRenderer content={item.content} />
             </div>
           )}
-          {!item.resolved && (() => {
+          {!item.resolved && !acceptedIds.has(item.id) && (() => {
             const opts: string[] = item.options ? (() => { try { return JSON.parse(item.options); } catch { return []; } })() : [];
             return opts.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
