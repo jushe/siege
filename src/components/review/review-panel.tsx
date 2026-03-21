@@ -241,6 +241,7 @@ export function ReviewPanel({
   };
 
   const [fixingItem, setFixingItem] = useState<string | null>(null);
+  const [fixingAll, setFixingAll] = useState(false);
   const [fixPromptItem, setFixPromptItem] = useState<ReviewItem | null>(null);
   const [fixUserNote, setFixUserNote] = useState("");
   const [reviewProvider, setReviewProvider] = useState("");
@@ -297,6 +298,48 @@ export function ReviewPanel({
     } finally {
       setFixingItem(null);
     }
+  };
+
+  const handleFixAll = async () => {
+    if (!latestReview || fixingAll) return;
+    const unresolvedItems = latestReview.items.filter(i => !i.resolved && i.targetId);
+    if (unresolvedItems.length === 0) return;
+
+    setFixingAll(true);
+    startLoading(isZh
+      ? `一键修复 ${unresolvedItems.length} 个问题...`
+      : `Fixing all ${unresolvedItems.length} issues...`);
+
+    let fixed = 0;
+    let failed = 0;
+    for (const item of unresolvedItems) {
+      updateContent(isZh
+        ? `正在修复 ${fixed + failed + 1}/${unresolvedItems.length}: ${item.title}...`
+        : `Fixing ${fixed + failed + 1}/${unresolvedItems.length}: ${item.title}...`);
+      try {
+        const fixMessage = `Fix the following issue:\n\n**${item.title}**\n\n${item.content}`;
+        await fetch("/api/schemes/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ schemeId: item.targetId, message: fixMessage }),
+        });
+        await fetch(`/api/review-items/${item.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ resolved: true }),
+        });
+        fixed++;
+      } catch {
+        failed++;
+      }
+    }
+
+    await fetchReviews();
+    onPlanStatusChange();
+    setFixingAll(false);
+    stopLoading(isZh
+      ? `修复完成: ${fixed} 成功${failed > 0 ? `, ${failed} 失败` : ""}`
+      : `Done: ${fixed} fixed${failed > 0 ? `, ${failed} failed` : ""}`);
   };
 
   const canReview =
@@ -518,9 +561,23 @@ export function ReviewPanel({
             <div className="space-y-2">
               {latestReview.items.length > 0 ? (
                 <>
-                  <h5 className="text-sm font-medium">
-                    {t("review.findings")} ({latestReview.items.length})
-                  </h5>
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+                      {t("review.findings")} ({latestReview.items.length})
+                    </h5>
+                    {latestReview.items.some(i => !i.resolved && i.targetId) && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={handleFixAll}
+                        disabled={fixingAll || fixingItem !== null}
+                      >
+                        <WrenchIcon size={14} className="inline-block align-[-2px]" /> {fixingAll
+                          ? (isZh ? "修复中..." : "Fixing...")
+                          : (isZh ? `一键修复 (${latestReview.items.filter(i => !i.resolved && i.targetId).length})` : `Fix All (${latestReview.items.filter(i => !i.resolved && i.targetId).length})`)}
+                      </Button>
+                    )}
+                  </div>
                   {(() => {
                     // Group findings by task
                     const taskGroups = new Map<string, { title: string; order: number; items: ReviewItem[] }>();
@@ -611,7 +668,7 @@ export function ReviewPanel({
                     </div>
                   </div>
                   {item.content && (
-                    <div className="mt-2 text-sm">
+                    <div className="mt-2 text-sm" style={{ color: "var(--foreground)" }}>
                       <MarkdownRenderer content={item.content} />
                     </div>
                   )}
@@ -747,7 +804,7 @@ function FindingsGroup({
             </button>
           </div>
           {item.content && (
-            <div className="mt-2 text-sm">
+            <div className="mt-2 text-sm" style={{ color: "var(--foreground)" }}>
               <MarkdownRenderer content={item.content} />
             </div>
           )}
