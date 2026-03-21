@@ -403,20 +403,24 @@ export function ReviewPanel({
             const key = snap.scheduleItemId || "";
             if (key && !seen.has(key)) {
               seen.add(key);
+              const uniqueFiles = new Set(snapshots.filter(s => s.scheduleItemId === key).map(s => s.filePath));
               taskList.push({
                 id: key,
                 title: snap.taskTitle || key,
                 order: snap.taskOrder ?? 999,
-                fileCount: snapshots.filter(s => s.scheduleItemId === key).length,
+                fileCount: uniqueFiles.size,
               });
             }
           }
           taskList.sort((a, b) => a.order - b.order);
 
-          // Filter snapshots by selected task
-          const filteredSnapshots = selectedTask
+          // Filter snapshots by selected task, deduplicate by filePath (keep latest)
+          const rawFiltered = selectedTask
             ? snapshots.filter(s => s.scheduleItemId === selectedTask)
             : snapshots;
+          const filteredSnapshots = Array.from(
+            rawFiltered.reduce((map, s) => { map.set(s.filePath, s); return map; }, new Map<string, typeof rawFiltered[0]>()).values()
+          );
 
           return (
         <div className="space-y-3">
