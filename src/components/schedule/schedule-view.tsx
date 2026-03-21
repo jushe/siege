@@ -441,19 +441,20 @@ export function ScheduleView({
   }
 
   const ganttTasks =
-    schedule?.items.map((item) => ({
-      id: item.id,
-      name: item.title,
-      start: item.startDate,
-      end: item.endDate,
-      progress: item.progress,
-      custom_class:
-        item.status === "completed"
-          ? "completed"
-          : item.status === "failed"
-            ? "failed"
-            : "",
-    })) || [];
+    schedule?.items.map((item) => {
+      const isFix = item.title.startsWith("[fix]");
+      return {
+        id: item.id,
+        name: isFix ? `  ↳ ${item.title.replace("[fix] ", "")}` : `#${item.order} ${item.title}`,
+        start: item.startDate,
+        end: item.endDate,
+        progress: item.progress,
+        custom_class: [
+          item.status === "completed" ? "completed" : item.status === "failed" ? "failed" : "",
+          isFix ? "subtask" : "",
+        ].filter(Boolean).join(" "),
+      };
+    }) || [];
 
   const pendingCount = schedule?.items.filter(i => i.status === "pending" || i.status === "failed").length || 0;
 
@@ -523,10 +524,60 @@ export function ScheduleView({
             }}
           />
 
+          {/* Task tree list */}
+          <div className="mt-4 rounded-lg border divide-y" style={{ borderColor: "var(--card-border)", background: "var(--card)" }}>
+            {schedule.items.sort((a, b) => a.order - b.order).map((item) => {
+              const isFix = item.title.startsWith("[fix]");
+              const isSelected = selectedItem?.id === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setSelectedItem(isSelected ? null : item)}
+                  className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:opacity-80 transition-colors"
+                  style={{
+                    background: isSelected ? "var(--background)" : undefined,
+                    paddingLeft: isFix ? "2.5rem" : "1rem",
+                  }}
+                >
+                  {/* Status dot */}
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${
+                    item.status === "completed" ? "bg-green-500" :
+                    item.status === "failed" ? "bg-red-500" :
+                    item.status === "in_progress" ? "bg-blue-500 animate-pulse" : ""
+                  }`} style={item.status === "pending" ? { background: "var(--card-border)" } : undefined} />
+
+                  {/* Order + title */}
+                  {isFix ? (
+                    <>
+                      <span className="text-[10px]" style={{ color: "#c4b5fd" }}>↳</span>
+                      <span style={{ color: "#c4b5fd" }}>{item.title.replace("[fix] ", "")}</span>
+                      <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: "rgba(124,58,237,0.2)", color: "#c4b5fd" }}>fix</span>
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ color: "var(--muted)" }}>#{item.order}</span>
+                      <span style={{ color: "var(--foreground)" }}>{item.title}</span>
+                    </>
+                  )}
+
+                  {/* Progress */}
+                  <span className="ml-auto text-xs" style={{ color: "var(--muted)" }}>
+                    {item.status === "completed" ? "✓" : item.status === "failed" ? "✗" : `${item.progress}%`}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
           {/* Selected task detail panel */}
           {selectedItem && (() => {
             const item = selectedItem;
             const isEditing = editingItem === item.id;
+            const isFix = item.title.startsWith("[fix]");
+            // Find parent task (the task just before this fix task)
+            const parentTask = isFix && schedule
+              ? schedule.items.sort((a, b) => a.order - b.order).find(i => i.order === item.order - 1)
+              : null;
             return (
               <div className="mt-4 rounded-lg border p-4" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
                 {isEditing ? (
@@ -578,8 +629,22 @@ export function ScheduleView({
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-sm" style={{ color: "var(--muted)" }}>#{item.order}</span>
-                        <h4 className="font-medium">{item.title}</h4>
+                        <h4 className="font-medium">{isFix ? item.title.replace("[fix] ", "") : item.title}</h4>
                         <StatusBadge status={item.status} label={item.status} />
+                        {isFix && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "rgba(124,58,237,0.2)", color: "#c4b5fd" }}>
+                            {isZh ? "修复任务" : "Fix"}
+                          </span>
+                        )}
+                        {parentTask && (
+                          <button
+                            onClick={() => setSelectedItem(parentTask)}
+                            className="text-[10px] px-1.5 py-0.5 rounded hover:opacity-80"
+                            style={{ background: "var(--card-border)", color: "var(--muted)" }}
+                          >
+                            ← #{parentTask.order} {parentTask.title.slice(0, 20)}
+                          </button>
+                        )}
                         {item.engine === "acp" && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>ACP</span>
                         )}

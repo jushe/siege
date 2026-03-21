@@ -99,7 +99,8 @@ export async function POST(req: NextRequest) {
   }
 
   const now = new Date();
-  const hours = estimatedHours || 2;
+  const isFix = title.startsWith("[fix]");
+  const hours = estimatedHours || (isFix ? 0.5 : 2);
   const parentItem = afterItemId ? existing.find(i => i.id === afterItemId) : null;
   const start = startDate || (parentItem ? parentItem.endDate : now.toISOString());
   const end = endDate || new Date(new Date(start).getTime() + hours * 3600000).toISOString();
