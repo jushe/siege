@@ -526,7 +526,7 @@ export function ScheduleView({
                 : (isZh ? "自动执行" : "Auto-Execute")}</>
             </button>
           )}
-          {(canGenerate || planStatus === "scheduled") && (
+          {canGenerate && (
             <Button onClick={handleGenerate} disabled={generating}>
               {generating
                 ? <><HourglassIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "生成中..." : "Generating..."}</>
