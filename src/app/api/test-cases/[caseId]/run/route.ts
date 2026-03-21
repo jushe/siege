@@ -131,7 +131,11 @@ If the test file doesn't exist, create it first, then run it. Report pass/fail s
 
     const durationMs = Date.now() - startTime;
     const output = result.text;
-    const passed = /pass/i.test(output) && !/fail/i.test(output);
+    // Detect pass/fail: look for definitive signals, not just word presence
+    const hasTestFailure = /(\d+)\s*fail/i.test(output) && !/0\s*fail/i.test(output);
+    const hasError = /error\[E/i.test(output) || /FAILED/i.test(output) || /panicked/i.test(output);
+    const hasPass = /pass/i.test(output) || /\bok\b/i.test(output) || /succeeded/i.test(output);
+    const passed = hasPass && !hasTestFailure && !hasError;
     const status = passed ? "passed" : "failed";
 
     const resultId = crypto.randomUUID();
