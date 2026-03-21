@@ -12,8 +12,9 @@ import {
   fileSnapshots,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
-import { getStepModel } from "@/lib/ai/config";
+import { resolveStepConfig, getStepModel } from "@/lib/ai/config";
 import { streamText } from "ai";
+import { AcpClient } from "@/lib/acp/client";
 import { parseJsonBody } from "@/lib/utils";
 import { execSync } from "child_process";
 import fs from "fs";
@@ -96,6 +97,96 @@ ${itemsSchema}
 Output ONLY the JSON object. No other text before or after.${langInstruction}`,
     prompt: `Plan: ${planName}\n\n${itemsSummary}`,
   };
+}
+
+function saveReviewResult(
+  fullText: string,
+  reviewId: string,
+  planId: string,
+  type: "scheme" | "implementation",
+  dbInstance: ReturnType<typeof getDb>,
+) {
+  try {
+    const trimmed = fullText.trim();
+    let parsed: any = null;
+    try { parsed = JSON.parse(trimmed); } catch {}
+    if (!parsed) {
+      const fenced = trimmed.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "");
+      try { parsed = JSON.parse(fenced); } catch {}
+    }
+    if (!parsed) {
+      const start = trimmed.indexOf("{");
+      if (start >= 0) {
+        let depth = 0, end = start;
+        for (let i = start; i < trimmed.length; i++) {
+          if (trimmed[i] === "{") depth++;
+          else if (trimmed[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
+        }
+        try { parsed = JSON.parse(trimmed.slice(start, end)); } catch {}
+      }
+    }
+
+    if (parsed && parsed.summary) {
+      const finalStatus = parsed.approved ? "approved" : "changes_requested";
+      dbInstance.update(reviews)
+        .set({ status: finalStatus, content: parsed.summary, updatedAt: new Date().toISOString() })
+        .where(eq(reviews.id, reviewId))
+        .run();
+
+      const fileToItemId = new Map<string, string>();
+      if (type === "implementation") {
+        const schedule = dbInstance.select().from(schedules).where(eq(schedules.planId, planId)).get();
+        if (schedule) {
+          const items = dbInstance.select().from(scheduleItems).where(eq(scheduleItems.scheduleId, schedule.id)).all();
+          for (const si of items) {
+            const snaps = dbInstance.select().from(fileSnapshots).where(eq(fileSnapshots.scheduleItemId, si.id)).all();
+            for (const snap of snaps) { fileToItemId.set(snap.filePath, si.id); }
+          }
+        }
+      }
+
+      for (const item of parsed.items || []) {
+        let resolvedTargetId = item.targetId || "";
+        if (type === "implementation" && item.filePath && fileToItemId.has(item.filePath)) {
+          resolvedTargetId = fileToItemId.get(item.filePath)!;
+        }
+        const opts = Array.isArray(item.options) ? item.options.filter((o: unknown) => typeof o === "string") : [];
+        dbInstance.insert(reviewItems).values({
+          id: crypto.randomUUID(), reviewId,
+          targetType: type === "scheme" ? "scheme" : "schedule_item",
+          targetId: resolvedTargetId,
+          title: item.title || "Finding",
+          content: item.content || "",
+          severity: item.severity || "info",
+          resolved: false,
+          filePath: item.filePath || null,
+          lineNumber: item.lineNumber || null,
+          options: opts.length > 0 ? JSON.stringify(opts) : null,
+        }).run();
+      }
+
+      if (type === "implementation" && parsed.approved) {
+        dbInstance.update(plans)
+          .set({ status: "testing", updatedAt: new Date().toISOString() })
+          .where(eq(plans.id, planId))
+          .run();
+      }
+    } else {
+      const fallbackContent = (trimmed.startsWith("{") || trimmed.startsWith("["))
+        ? "AI 返回了无法解析的结果，请重试。/ AI returned unparseable result, please retry."
+        : trimmed || "AI 未返回有效的审查结果，请重试。/ AI returned no valid review output, please retry.";
+      dbInstance.update(reviews)
+        .set({ status: "changes_requested", content: fallbackContent, updatedAt: new Date().toISOString() })
+        .where(eq(reviews.id, reviewId))
+        .run();
+    }
+  } catch (err) {
+    console.error("[review-generate] save failed:", err);
+    dbInstance.update(reviews)
+      .set({ status: "changes_requested", content: `Save error: ${err instanceof Error ? err.message : err}`, updatedAt: new Date().toISOString() })
+      .where(eq(reviews.id, reviewId))
+      .run();
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -207,36 +298,78 @@ export async function POST(req: NextRequest) {
     .run();
 
   const { system, prompt } = buildReviewPrompt(type, plan.name, itemsToReview);
+  const resolved = resolveStepConfig("review", rawProvider, model);
+
+  const project = type === "implementation"
+    ? db.select().from(projects).where(eq(projects.id, plan.projectId)).get()
+    : null;
+  const cwd = project?.targetRepoPath && fs.existsSync(project.targetRepoPath)
+    ? project.targetRepoPath
+    : process.cwd();
+
+  const encoder = new TextEncoder();
+  let fullText = "";
+
+  // ACP engine: use Claude Code / Codex
+  if (resolved.provider === "acp" || resolved.provider === "codex-acp") {
+    const responseStream = new ReadableStream({
+      async start(controller) {
+        const acpClient = new AcpClient(cwd, resolved.provider === "codex-acp" ? "codex" : "claude");
+        try {
+          await acpClient.start();
+          const session = await acpClient.createSession(resolved.model);
+
+          await acpClient.prompt(session.sessionId, `${system}\n\n${prompt}`, (t, text) => {
+            if (t === "text") {
+              fullText += text;
+              controller.enqueue(encoder.encode(text));
+            }
+          });
+          controller.close();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          controller.enqueue(encoder.encode(`\nError: ${msg}`));
+          controller.close();
+        }
+
+        // Parse and save (same logic below)
+        saveReviewResult(fullText, reviewId, planId, type, db);
+      },
+    });
+
+    return new Response(responseStream, {
+      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    });
+  }
+
+  // SDK path
   let aiModel;
   try {
-    aiModel = getStepModel("review", provider, model);
+    aiModel = getStepModel("review", rawProvider, model);
   } catch (err) {
-    // Rollback the in_progress review
     db.update(reviews)
       .set({ status: "changes_requested", content: err instanceof Error ? err.message : String(err) })
       .where(eq(reviews.id, reviewId))
       .run();
-    const msg = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: msg }, { status: 503 });
+    return NextResponse.json({ error: String(err) }, { status: 503 });
   }
 
   const result = streamText({ model: aiModel, system, prompt });
 
-  const textStream = result.textStream;
-  const encoder = new TextEncoder();
-  let fullText = "";
-
   const responseStream = new ReadableStream({
     async start(controller) {
       try {
-      for await (const chunk of textStream) {
-        fullText += chunk;
-        controller.enqueue(encoder.encode(chunk));
+      for await (const part of result.fullStream) {
+        if (part.type === "text-delta") {
+          fullText += part.text;
+          controller.enqueue(encoder.encode(part.text));
+        } else if (part.type === "error") {
+          console.error("[review] stream error part:", part);
+        }
       }
       } catch (streamErr) {
         const msg = streamErr instanceof Error ? streamErr.message : String(streamErr);
         controller.enqueue(encoder.encode(`\nError: ${msg}`));
-        // Mark review as failed
         const db2 = getDb();
         db2.update(reviews)
           .set({ status: "changes_requested", content: `AI error: ${msg}`, updatedAt: new Date().toISOString() })
@@ -247,104 +380,7 @@ export async function POST(req: NextRequest) {
       }
       controller.close();
 
-      // Parse and save review
-      try {
-        // Try multiple JSON extraction strategies
-        let parsed: any = null;
-        const trimmed = fullText.trim();
-        // 1. Direct parse
-        try { parsed = JSON.parse(trimmed); } catch {}
-        // 2. Strip markdown code fences
-        if (!parsed) {
-          const fenced = trimmed.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/, "");
-          try { parsed = JSON.parse(fenced); } catch {}
-        }
-        // 3. Extract first {...} block (non-greedy by finding matching braces)
-        if (!parsed) {
-          const start = trimmed.indexOf("{");
-          if (start >= 0) {
-            let depth = 0;
-            let end = start;
-            for (let i = start; i < trimmed.length; i++) {
-              if (trimmed[i] === "{") depth++;
-              else if (trimmed[i] === "}") { depth--; if (depth === 0) { end = i + 1; break; } }
-            }
-            try { parsed = JSON.parse(trimmed.slice(start, end)); } catch {}
-          }
-        }
-
-        const db = getDb();
-        if (parsed && parsed.summary) {
-          const finalStatus = parsed.approved ? "approved" : "changes_requested";
-          db.update(reviews)
-            .set({ status: finalStatus, content: parsed.summary, updatedAt: new Date().toISOString() })
-            .where(eq(reviews.id, reviewId))
-            .run();
-
-          // Build filePath → scheduleItemId map from snapshots for linking
-          const fileToItemId = new Map<string, string>();
-          if (type === "implementation") {
-            const schedule = db.select().from(schedules).where(eq(schedules.planId, planId)).get();
-            if (schedule) {
-              const items = db.select().from(scheduleItems).where(eq(scheduleItems.scheduleId, schedule.id)).all();
-              for (const si of items) {
-                const snaps = db.select().from(fileSnapshots).where(eq(fileSnapshots.scheduleItemId, si.id)).all();
-                for (const snap of snaps) {
-                  fileToItemId.set(snap.filePath, si.id);
-                }
-              }
-            }
-          }
-
-          for (const item of parsed.items || []) {
-            // Resolve targetId: prefer AI-returned, then match by filePath from snapshots
-            let resolvedTargetId = item.targetId || "";
-            if (type === "implementation" && item.filePath && fileToItemId.has(item.filePath)) {
-              resolvedTargetId = fileToItemId.get(item.filePath)!;
-            }
-
-            const opts = Array.isArray(item.options) ? item.options.filter((o: unknown) => typeof o === "string") : [];
-            db.insert(reviewItems)
-              .values({
-                id: crypto.randomUUID(),
-                reviewId,
-                targetType: type === "scheme" ? "scheme" : "schedule_item",
-                targetId: resolvedTargetId,
-                title: item.title || "Finding",
-                content: item.content || "",
-                severity: item.severity || "info",
-                resolved: false,
-                filePath: item.filePath || null,
-                lineNumber: item.lineNumber || null,
-                options: opts.length > 0 ? JSON.stringify(opts) : null,
-              })
-              .run();
-          }
-
-          if (type === "implementation" && parsed.approved) {
-            db.update(plans)
-              .set({ status: "testing", updatedAt: new Date().toISOString() })
-              .where(eq(plans.id, planId))
-              .run();
-          }
-        } else {
-          // Don't store raw JSON as display content
-          const fallbackContent = (fullText.trim().startsWith("{") || fullText.trim().startsWith("["))
-            ? "AI 返回了无法解析的结果，请重试。/ AI returned unparseable result, please retry."
-            : fullText.trim() || "AI 未返回有效的审查结果，请重试。/ AI returned no valid review output, please retry.";
-          db.update(reviews)
-            .set({ status: "changes_requested", content: fallbackContent, updatedAt: new Date().toISOString() })
-            .where(eq(reviews.id, reviewId))
-            .run();
-        }
-      } catch (err) {
-        console.error("[review-generate] save failed:", err);
-        const db3 = getDb();
-        db3.update(reviews)
-          .set({ status: "changes_requested", content: `Save error: ${err instanceof Error ? err.message : err}`, updatedAt: new Date().toISOString() })
-          .where(eq(reviews.id, reviewId))
-          .run();
-      }
+      saveReviewResult(fullText, reviewId, planId, type, getDb());
     },
   });
 
