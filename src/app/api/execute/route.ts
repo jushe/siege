@@ -27,22 +27,22 @@ function getHeadHash(cwd: string): string {
 
 function captureFileSnapshots(itemId: string, cwd: string, beforeHash: string) {
   try {
-    const currentHash = getHeadHash(cwd);
+    const afterHash = getHeadHash(cwd);
 
-    // 1. Files changed between commits (covers changes that were committed by CLI/ACP)
+    // Committed changes between beforeHash..afterHash (this task's commits only)
     let committedFiles: string[] = [];
-    if (beforeHash && currentHash && beforeHash !== currentHash) {
-      committedFiles = execSync(`git diff --name-only ${beforeHash}..${currentHash}`, {
+    if (beforeHash && afterHash && beforeHash !== afterHash) {
+      committedFiles = execSync(`git diff --name-only ${beforeHash}..${afterHash}`, {
         cwd, encoding: "utf-8", timeout: 5000,
       }).trim().split("\n").filter(Boolean);
     }
 
-    // 2. Uncommitted changes (staged + unstaged)
+    // Uncommitted changes (staged + unstaged, relative to current HEAD)
     const uncommittedFiles = execSync("git diff HEAD --name-only", {
       cwd, encoding: "utf-8", timeout: 5000,
     }).trim().split("\n").filter(Boolean);
 
-    // 3. Untracked files
+    // Untracked files
     const untrackedFiles = execSync("git ls-files --others --exclude-standard", {
       cwd, encoding: "utf-8", timeout: 5000,
     }).trim().split("\n").filter(Boolean);
@@ -52,27 +52,28 @@ function captureFileSnapshots(itemId: string, cwd: string, beforeHash: string) {
 
     const db = getDb();
     for (const filePath of allFiles) {
-      const fullPath = path.join(cwd, filePath);
-
-      // Content before: from the pre-execution commit
+      // contentBefore: file at beforeHash (pre-task state)
       let contentBefore = "";
-      const refBefore = beforeHash || "HEAD";
       try {
-        contentBefore = execSync(`git show ${refBefore}:${filePath}`, {
+        contentBefore = execSync(`git show ${beforeHash}:${filePath}`, {
           cwd, encoding: "utf-8", timeout: 5000,
         });
       } catch { /* new file */ }
 
-      // Content after: current working tree, or latest committed version
+      // contentAfter: file at afterHash for committed files, or working tree for uncommitted
       let contentAfter = "";
-      try {
-        contentAfter = fs.readFileSync(fullPath, "utf-8");
-      } catch {
-        // File might only exist in commits (not working tree) — try current HEAD
+      if (committedFiles.includes(filePath)) {
+        // Use the committed version at afterHash (not working tree which may have later tasks' changes)
         try {
-          contentAfter = execSync(`git show HEAD:${filePath}`, {
+          contentAfter = execSync(`git show ${afterHash}:${filePath}`, {
             cwd, encoding: "utf-8", timeout: 5000,
           });
+        } catch { /* deleted in commit */ }
+      } else {
+        // Uncommitted/untracked: read from working tree
+        const fullPath = path.join(cwd, filePath);
+        try {
+          contentAfter = fs.readFileSync(fullPath, "utf-8");
         } catch { /* deleted */ }
       }
 
