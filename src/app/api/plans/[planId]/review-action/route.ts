@@ -22,21 +22,8 @@ export async function POST(
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
 
   if (action === "accept") {
-    // Mark all unresolved findings as resolved
-    const allReviews = db.select().from(reviews).where(eq(reviews.planId, planId)).all();
-    for (const review of allReviews) {
-      const items = db.select().from(reviewItems).where(eq(reviewItems.reviewId, review.id)).all();
-      for (const item of items) {
-        if (!item.resolved) {
-          db.update(reviewItems)
-            .set({ resolved: true })
-            .where(eq(reviewItems.id, item.id))
-            .run();
-        }
-      }
-    }
-
-    // Transition to testing
+    // Only transition plan status — do NOT bulk-resolve findings
+    // Findings should be resolved individually (dismiss/fix task completion)
     db.update(plans)
       .set({ status: "testing", updatedAt: new Date().toISOString() })
       .where(eq(plans.id, planId))
