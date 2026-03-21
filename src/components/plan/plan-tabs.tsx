@@ -82,7 +82,7 @@ export function PlanTabs({
           onPlanStatusChange={onPlanStatusChange}
         />
       ),
-      disabled: !["testing", "completed"].includes(planStatus),
+      disabled: !["executing", "code_review", "testing", "completed"].includes(planStatus),
     },
     {
       id: "logs",
