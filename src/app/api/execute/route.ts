@@ -17,36 +17,64 @@ import { parseJsonBody } from "@/lib/utils";
 import fs from "fs";
 import path from "path";
 
-function captureFileSnapshots(itemId: string, cwd: string) {
+function getHeadHash(cwd: string): string {
   try {
-    // Get list of changed files (staged + unstaged)
-    const changedFiles = execSync("git diff HEAD --name-only", {
+    return execSync("git rev-parse HEAD", { cwd, encoding: "utf-8", timeout: 5000 }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function captureFileSnapshots(itemId: string, cwd: string, beforeHash: string) {
+  try {
+    const currentHash = getHeadHash(cwd);
+
+    // 1. Files changed between commits (covers changes that were committed by CLI/ACP)
+    let committedFiles: string[] = [];
+    if (beforeHash && currentHash && beforeHash !== currentHash) {
+      committedFiles = execSync(`git diff --name-only ${beforeHash}..${currentHash}`, {
+        cwd, encoding: "utf-8", timeout: 5000,
+      }).trim().split("\n").filter(Boolean);
+    }
+
+    // 2. Uncommitted changes (staged + unstaged)
+    const uncommittedFiles = execSync("git diff HEAD --name-only", {
       cwd, encoding: "utf-8", timeout: 5000,
     }).trim().split("\n").filter(Boolean);
 
-    // Get untracked files
+    // 3. Untracked files
     const untrackedFiles = execSync("git ls-files --others --exclude-standard", {
       cwd, encoding: "utf-8", timeout: 5000,
     }).trim().split("\n").filter(Boolean);
 
-    const allFiles = [...new Set([...changedFiles, ...untrackedFiles])];
-    const db = getDb();
+    const allFiles = [...new Set([...committedFiles, ...uncommittedFiles, ...untrackedFiles])];
+    if (allFiles.length === 0) return;
 
+    const db = getDb();
     for (const filePath of allFiles) {
       const fullPath = path.join(cwd, filePath);
-      // Get content before (from HEAD)
+
+      // Content before: from the pre-execution commit
       let contentBefore = "";
+      const refBefore = beforeHash || "HEAD";
       try {
-        contentBefore = execSync(`git show HEAD:${filePath}`, {
+        contentBefore = execSync(`git show ${refBefore}:${filePath}`, {
           cwd, encoding: "utf-8", timeout: 5000,
         });
       } catch { /* new file */ }
 
-      // Get current content
+      // Content after: current working tree, or latest committed version
       let contentAfter = "";
       try {
         contentAfter = fs.readFileSync(fullPath, "utf-8");
-      } catch { /* deleted */ }
+      } catch {
+        // File might only exist in commits (not working tree) — try current HEAD
+        try {
+          contentAfter = execSync(`git show HEAD:${filePath}`, {
+            cwd, encoding: "utf-8", timeout: 5000,
+          });
+        } catch { /* deleted */ }
+      }
 
       if (contentBefore === contentAfter) continue;
 
@@ -370,6 +398,7 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
   const engine = item.engine || "claude-code";
   const encoder = new TextEncoder();
   let fullLog = "";
+  const beforeHash = getHeadHash(cwd);
 
   // ACP engine: use Agent Client Protocol with session reuse per project
   if (engine === "acp" || engine === "codex-acp") {
@@ -425,7 +454,7 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
             .where(eq(scheduleItems.id, itemId))
             .run();
 
-          captureFileSnapshots(itemId, cwd);
+          captureFileSnapshots(itemId, cwd, beforeHash);
 
           // Don't kill the agent — keep alive for session reuse
           controller.close();
@@ -500,7 +529,7 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
           .where(eq(scheduleItems.id, itemId))
           .run();
 
-        captureFileSnapshots(itemId, cwd);
+        captureFileSnapshots(itemId, cwd, beforeHash);
         controller.close();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
