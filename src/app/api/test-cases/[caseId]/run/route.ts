@@ -141,7 +141,9 @@ If the test file doesn't exist, create it first, then run it. Report pass/fail s
     const resultId = crypto.randomUUID();
     db.insert(testResults).values({
       id: resultId, testCaseId: caseId, status,
-      output: output || "No output", errorMessage: null, durationMs,
+      output: output || "No output",
+      errorMessage: !passed ? (output || "Test failed — no output from AI") : null,
+      durationMs,
     }).run();
 
     db.update(testCases).set({ status }).where(eq(testCases.id, caseId)).run();
