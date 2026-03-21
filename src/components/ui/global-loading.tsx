@@ -44,47 +44,51 @@ export function useGlobalLoading() {
 function TaskTimeline({ tasks }: { tasks: TaskProgress[] }) {
   if (tasks.length === 0) return null;
   return (
-    <div className="px-6 py-3 overflow-x-auto" style={{ borderBottom: "1px solid var(--card-border)" }}>
-      <div className="flex items-center gap-1 min-w-0">
+    <div className="px-6 py-3 max-h-[180px] overflow-y-auto" style={{ borderBottom: "1px solid var(--card-border)" }}>
+      <div className="space-y-0">
         {tasks.map((task, i) => (
-          <div key={task.id} className="flex items-center gap-1 shrink-0">
-            {i > 0 && (
-              <div
-                className="w-4 h-px shrink-0"
-                style={{ background: task.status === "pending" ? "var(--card-border)" : "var(--foreground)" }}
-              />
-            )}
-            <div
-              className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] whitespace-nowrap ${
-                task.status === "running" ? "ring-1 ring-blue-400" : ""
-              }`}
+          <div key={task.id} className="flex items-stretch gap-3">
+            {/* Vertical line + dot */}
+            <div className="flex flex-col items-center w-4 shrink-0">
+              {task.status === "running" ? (
+                <svg className="w-4 h-4 shrink-0 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.2" />
+                  <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+              ) : (
+                <div
+                  className="w-2.5 h-2.5 rounded-full shrink-0 mt-[3px]"
+                  style={{
+                    background: task.status === "completed"
+                      ? "#22c55e"
+                      : task.status === "failed"
+                        ? "#ef4444"
+                        : "var(--card-border)",
+                  }}
+                />
+              )}
+              {i < tasks.length - 1 && (
+                <div
+                  className="flex-1 w-px min-h-[12px]"
+                  style={{
+                    background: task.status === "completed" ? "#22c55e" : "var(--card-border)",
+                  }}
+                />
+              )}
+            </div>
+            {/* Task label */}
+            <div className={`text-xs pb-2 ${task.status === "running" ? "font-medium" : ""}`}
               style={{
-                background: task.status === "completed"
-                  ? "rgba(34,197,94,0.15)"
-                  : task.status === "running"
-                    ? "rgba(59,130,246,0.15)"
-                    : task.status === "failed"
-                      ? "rgba(239,68,68,0.15)"
-                      : "var(--card-border)",
                 color: task.status === "completed"
                   ? "#22c55e"
                   : task.status === "running"
-                    ? "#3b82f6"
+                    ? "var(--foreground)"
                     : task.status === "failed"
                       ? "#ef4444"
                       : "var(--muted)",
               }}
             >
-              {task.status === "completed" ? (
-                <CheckIcon size={10} />
-              ) : task.status === "running" ? (
-                <HourglassIcon size={10} className="animate-pulse" />
-              ) : task.status === "failed" ? (
-                <XIcon size={10} />
-              ) : (
-                <CircleIcon size={10} />
-              )}
-              <span>#{task.order} {task.title}</span>
+              #{task.order} {task.title}
             </div>
           </div>
         ))}
