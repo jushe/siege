@@ -216,6 +216,44 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
     onPlanStatusChange();
   };
 
+  // Edit test case
+  const [editingCase, setEditingCase] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", description: "", type: "unit", code: "", filePath: "" });
+
+  const startEditCase = (tc: TestCase) => {
+    setEditForm({
+      name: tc.name,
+      description: tc.description || "",
+      type: tc.type,
+      code: tc.generatedCode || "",
+      filePath: tc.filePath || "",
+    });
+    setEditingCase(tc.id);
+  };
+
+  const saveEditCase = async () => {
+    if (!editingCase) return;
+    await fetch(`/api/test-cases/${editingCase}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editForm.name,
+        description: editForm.description,
+        type: editForm.type,
+        generatedCode: editForm.code,
+        filePath: editForm.filePath,
+      }),
+    });
+    setEditingCase(null);
+    await fetchSuite();
+  };
+
+  const deleteCase = async (caseId: string) => {
+    await fetch(`/api/test-cases/${caseId}`, { method: "DELETE" });
+    setExpandedCase(null);
+    await fetchSuite();
+  };
+
   // Manual add test case
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addForm, setAddForm] = useState({ name: "", description: "", type: "unit", code: "", filePath: "", taskId: "" });
@@ -420,15 +458,41 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
 
                     {expandedCase === tc.id && (
                       <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid var(--card-border)", background: "var(--card)" }}>
+                        {editingCase === tc.id ? (
+                          <div className="pt-3 space-y-3">
+                            <Input label={isZh ? "名称" : "Name"} value={editForm.name} onChange={(e) => setEditForm(f => ({ ...f, name: e.target.value }))} />
+                            <Input label={isZh ? "描述" : "Description"} value={editForm.description} onChange={(e) => setEditForm(f => ({ ...f, description: e.target.value }))} />
+                            <Input label={isZh ? "文件路径" : "File Path"} value={editForm.filePath} onChange={(e) => setEditForm(f => ({ ...f, filePath: e.target.value }))} />
+                            <div>
+                              <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>{isZh ? "测试代码" : "Test Code"}</label>
+                              <textarea value={editForm.code} onChange={(e) => setEditForm(f => ({ ...f, code: e.target.value }))} rows={8}
+                                className="w-full rounded-md border px-3 py-2 text-sm font-mono" style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }} />
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" onClick={saveEditCase}>{t("common.save")}</Button>
+                              <Button size="sm" variant="secondary" onClick={() => setEditingCase(null)}>{t("common.cancel")}</Button>
+                            </div>
+                          </div>
+                        ) : (
+                        <>
+                        {/* Action buttons */}
+                        <div className="pt-3 flex gap-2">
+                          <button onClick={() => startEditCase(tc)} className="text-xs px-2 py-1 rounded hover:opacity-80" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>
+                            {t("common.edit")}
+                          </button>
+                          <button onClick={() => { if (window.confirm(isZh ? "确定删除？" : "Delete?")) deleteCase(tc.id); }} className="text-xs px-2 py-1 rounded hover:opacity-80 text-red-400" style={{ background: "rgba(239,68,68,0.1)" }}>
+                            {t("common.delete")}
+                          </button>
+                        </div>
                         {tc.description && (
-                          <div className="pt-3">
+                          <div>
                             <MarkdownRenderer content={tc.description} />
                           </div>
                         )}
                         {tc.generatedCode && (
                           <div className="pt-2">
                             <h5 className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
-                              {isZh ? "生成的测试代码" : "Generated Code"}
+                              {isZh ? "测试代码" : "Test Code"}
                             </h5>
                             <MarkdownRenderer content={`\`\`\`\n${tc.generatedCode}\n\`\`\``} />
                           </div>
@@ -452,6 +516,8 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
                               </div>
                             ))}
                           </div>
+                        )}
+                        </>
                         )}
                       </div>
                     )}
