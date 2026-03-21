@@ -15,7 +15,7 @@ interface SkillSummary {
 interface GenerateSchemeDialogProps {
   open: boolean;
   onClose: () => void;
-  onGenerate: (provider: string, skills: string[], model?: string) => void;
+  onGenerate: (provider: string, skills: string[], model?: string, interactive?: boolean) => void;
   generating: boolean;
 }
 
@@ -26,11 +26,13 @@ export function GenerateSchemeDialog({
   generating,
 }: GenerateSchemeDialogProps) {
   const t = useTranslations();
+  const isZh = t("common.back") === "返回";
   const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
   const defaultProvider = useDefaultProvider();
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
+  const [interactiveMode, setInteractiveMode] = useState(true);
 
   useEffect(() => {
     if (defaultProvider && !provider) setProvider(defaultProvider);
@@ -69,6 +71,25 @@ export function GenerateSchemeDialog({
           />
         </div>
 
+        {/* Interactive mode toggle */}
+        <label className="flex items-center gap-3 cursor-pointer">
+          <div
+            className={`relative w-10 h-5 rounded-full transition-colors ${interactiveMode ? "bg-blue-500" : ""}`}
+            style={!interactiveMode ? { background: "var(--card-border)" } : undefined}
+            onClick={() => setInteractiveMode(!interactiveMode)}
+          >
+            <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${interactiveMode ? "translate-x-5" : "translate-x-0.5"}`} />
+          </div>
+          <div>
+            <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+              {isZh ? "交互模式" : "Interactive Mode"}
+            </span>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              {isZh ? "AI 会在生成过程中询问关键设计决策" : "AI will ask key design questions during generation"}
+            </p>
+          </div>
+        </label>
+
         {/* Skills */}
         {skills.length > 0 && (
           <div>
@@ -102,7 +123,7 @@ export function GenerateSchemeDialog({
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>{t("common.cancel")}</Button>
           <Button
-            onClick={() => onGenerate(provider, selectedSkills, model || undefined)}
+            onClick={() => onGenerate(provider, selectedSkills, model || undefined, interactiveMode)}
             disabled={generating}
           >
             {generating ? t("common.loading") : t("scheme.generate")}

@@ -3,11 +3,14 @@ import { getDb } from "@/lib/db";
 import { plans, projects, schemes } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { execSync } from "child_process";
-import { streamText, tool, stepCountIs } from "ai";
+import { streamText, tool, stepCountIs, generateText } from "ai";
 import { z } from "zod";
 import { resolveStepConfig, getStepModel } from "@/lib/ai/config";
 import { AcpClient } from "@/lib/acp/client";
 import { parseJsonBody } from "@/lib/utils";
+import { sseEncode } from "@/lib/ai/sse";
+import { createSession, removeSession } from "@/lib/ai/interactive-session";
+import { buildAnalysisPrompt, buildSynthesisPrompt, parseQuestionsFromAIOutput } from "@/lib/ai/interactive-prompt";
 import fs from "fs";
 import path from "path";
 
@@ -176,7 +179,9 @@ function createProjectTools(repoPath: string) {
 export async function POST(req: NextRequest) {
   const [body, errRes] = await parseJsonBody(req);
   if (errRes) return errRes;
-  const { planId, provider, model } = body as { planId: string; provider?: string; model?: string };
+  const { planId, provider, model, interactive } = body as {
+    planId: string; provider?: string; model?: string; interactive?: boolean;
+  };
 
   if (!planId) return NextResponse.json({ error: "planId required" }, { status: 400 });
 
@@ -188,12 +193,151 @@ export async function POST(req: NextRequest) {
   if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
 
   const cwd = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
-  const prompt = buildPrompt(project, plan);
   const encoder = new TextEncoder();
   let fullText = "";
 
   // Resolve step-specific provider/model for "scheme" step
   const resolved = resolveStepConfig("scheme", provider as string, model);
+
+  // --- Interactive mode: two-phase generation with user Q&A ---
+  if (interactive) {
+    const generationId = crypto.randomUUID();
+    const session = createSession(generationId, planId);
+    const hasChinese = /[\u4e00-\u9fff]/.test(plan.description || plan.name);
+
+    const responseStream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Phase 1: Generate questions
+          controller.enqueue(sseEncode("text", hasChinese ? "AI 正在分析项目，准备设计决策问题...\n" : "AI analyzing project for design decisions...\n"));
+
+          let configuredModel;
+          try {
+            configuredModel = getStepModel("scheme", provider as string, model);
+          } catch (err) {
+            // Fallback to non-interactive
+            controller.enqueue(sseEncode("fallback", { reason: err instanceof Error ? err.message : String(err) }));
+            controller.enqueue(sseEncode("done", {}));
+            controller.close();
+            removeSession(generationId);
+            return;
+          }
+
+          const analysisPrompt = buildAnalysisPrompt(
+            plan.name,
+            plan.description || "",
+            project.description || "",
+            hasChinese,
+          );
+
+          const analysisResult = await generateText({
+            model: configuredModel,
+            prompt: analysisPrompt,
+          });
+
+          const questions = parseQuestionsFromAIOutput(analysisResult.text);
+
+          if (questions.length === 0) {
+            // No questions — fall back to standard generation
+            controller.enqueue(sseEncode("fallback", { reason: "no_questions" }));
+            controller.enqueue(sseEncode("done", {}));
+            controller.close();
+            removeSession(generationId);
+            return;
+          }
+
+          // Send init event with generationId
+          controller.enqueue(sseEncode("init", { generationId, questionCount: questions.length }));
+
+          // Phase 2: Ask questions one by one
+          for (const q of questions) {
+            controller.enqueue(sseEncode("question", {
+              id: q.id,
+              text: q.text,
+              options: q.options,
+              default: q.default,
+            }));
+
+            // Wait for user answer
+            let answer: string;
+            try {
+              answer = await session.waitForAnswer(q.id);
+            } catch {
+              // Timeout — use default
+              answer = q.default || q.options[0] || "";
+            }
+
+            session.qaHistory.push({
+              id: q.id,
+              question: q.text,
+              options: q.options,
+              answer,
+            });
+
+            controller.enqueue(sseEncode("answer_received", { id: q.id, answer }));
+            controller.enqueue(sseEncode("text", hasChinese
+              ? `\n> **决策: ${q.text}**\n> 选择: ${answer}\n\n`
+              : `\n> **Decision: ${q.text}**\n> Choice: ${answer}\n\n`
+            ));
+          }
+
+          // Phase 3: Generate scheme with answers
+          controller.enqueue(sseEncode("text", hasChinese
+            ? "\n---\n\nAI 正在根据你的决策生成方案...\n\n"
+            : "\n---\n\nGenerating scheme based on your decisions...\n\n"
+          ));
+
+          // Get existing schemes for context
+          const existingSchemes = db.select().from(schemes).where(eq(schemes.planId, planId)).all();
+          const schemeSummary = existingSchemes.map(s => `### ${s.title}\n${s.content || ""}`).join("\n\n");
+
+          const synthesisPrompt = buildSynthesisPrompt(
+            plan.name,
+            plan.description || "",
+            project.description || "",
+            schemeSummary,
+            session.qaHistory,
+            hasChinese,
+          );
+
+          const synthResult = streamText({
+            model: configuredModel,
+            prompt: synthesisPrompt,
+          });
+
+          let schemeText = "";
+          for await (const part of synthResult.fullStream) {
+            if (part.type === "text-delta") {
+              schemeText += part.text;
+              controller.enqueue(sseEncode("text", part.text));
+            }
+          }
+
+          // Save scheme
+          if (schemeText.trim()) {
+            saveScheme(planId, schemeText.trim(), plan.status);
+          }
+
+          controller.enqueue(sseEncode("done", {}));
+          controller.close();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          controller.enqueue(sseEncode("text", `\nError: ${msg}`));
+          controller.enqueue(sseEncode("done", {}));
+          controller.close();
+        } finally {
+          removeSession(generationId);
+        }
+      },
+    });
+
+    return new Response(responseStream, {
+      headers: { "Content-Type": "text/event-stream; charset=utf-8", "Cache-Control": "no-cache" },
+    });
+  }
+
+  // --- Standard (non-interactive) mode ---
+  const prompt = buildPrompt(project, plan);
 
   // ACP engine: use Claude Code / Codex via Agent Client Protocol
   if (resolved.provider === "acp" || resolved.provider === "codex-acp") {

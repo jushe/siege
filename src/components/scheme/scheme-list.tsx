@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { SchemeCard } from "./scheme-card";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { CreateSchemeDialog } from "./create-scheme-dialog";
 import { GenerateSchemeDialog } from "./generate-scheme-dialog";
+import { SchemeQuestionDialog } from "./scheme-question-dialog";
 import { ReviewPanel } from "@/components/review/review-panel";
 import { useGlobalLoading } from "@/components/ui/global-loading";
+import { sseParseEvent } from "@/lib/ai/sse";
 
 interface Scheme {
   id: string;
@@ -119,7 +121,25 @@ export function SchemeList({
 
   const isZh = t("common.back") === "返回";
 
-  const handleGenerate = async (provider: string, skills: string[], model?: string) => {
+  // Interactive mode state
+  const [currentQuestion, setCurrentQuestion] = useState<{
+    id: string; text: string; options: string[]; default?: string;
+  } | null>(null);
+  const [generationId, setGenerationId] = useState<string | null>(null);
+  const [questionNumber, setQuestionNumber] = useState(0);
+  const [totalQuestions, setTotalQuestions] = useState(0);
+
+  const handleAnswer = useCallback(async (questionId: string, answer: string) => {
+    if (!generationId) return;
+    setCurrentQuestion(null);
+    await fetch("/api/schemes/generate/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ generationId, questionId, answer }),
+    });
+  }, [generationId]);
+
+  const handleGenerate = async (provider: string, skills: string[], model?: string, interactive?: boolean) => {
     setGenerating(true);
     setGenerateDialogOpen(false);
     setStreamingContent("");
@@ -131,10 +151,69 @@ export function SchemeList({
       const res = await fetch("/api/schemes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, provider, skills, model }),
+        body: JSON.stringify({ planId, provider, skills, model, interactive }),
       });
 
-      if (res.ok && res.body) {
+      if (!res.ok || !res.body) {
+        stopLoading(isZh ? `生成失败 (${res.status})` : `Failed (${res.status})`);
+        return;
+      }
+
+      if (interactive) {
+        // SSE stream parsing
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let content = "";
+        let fellBack = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          // Process complete SSE events (split by \n\n)
+          const parts = buffer.split("\n\n");
+          buffer = parts.pop() || ""; // Keep incomplete part in buffer
+
+          for (const part of parts) {
+            if (!part.trim()) continue;
+            const parsed = sseParseEvent(part);
+            if (!parsed) continue;
+
+            if (parsed.event === "text") {
+              content += parsed.data;
+              setStreamingContent(content);
+              updateContent(content);
+            } else if (parsed.event === "init") {
+              const init = JSON.parse(parsed.data);
+              setGenerationId(init.generationId);
+              setTotalQuestions(init.questionCount);
+              setQuestionNumber(0);
+            } else if (parsed.event === "question") {
+              const q = JSON.parse(parsed.data);
+              setQuestionNumber((n) => n + 1);
+              setCurrentQuestion(q);
+              // Stream pauses here — waiting for user answer via handleAnswer
+            } else if (parsed.event === "answer_received") {
+              // Question answered, stream continues
+            } else if (parsed.event === "fallback") {
+              // Fall back to standard generation
+              fellBack = true;
+            } else if (parsed.event === "done") {
+              break;
+            }
+          }
+        }
+
+        if (fellBack) {
+          // Re-run without interactive mode
+          stopLoading();
+          await handleGenerate(provider, skills, model, false);
+          return;
+        }
+      } else {
+        // Standard plain-text streaming
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let content = "";
@@ -146,29 +225,28 @@ export function SchemeList({
           updateContent(content);
         }
 
-        // Check if content contains error
         if (content.includes("Error:") && content.trim().split("\n").length < 5) {
           stopLoading(isZh ? `生成失败: ${content.trim()}` : `Failed: ${content.trim()}`);
-        } else {
-          await new Promise((r) => setTimeout(r, 1000));
-          await fetchSchemes();
-          onPlanStatusChange();
-          // Check if new schemes were actually created
-          const newSchemes = await fetch(`/api/schemes?planId=${planId}`).then(r => r.json());
-          if (newSchemes.length > currentCount) {
-            stopLoading(isZh ? "方案生成完成" : "Scheme generated");
-          } else {
-            stopLoading(isZh ? "方案生成失败，请检查 AI 配置" : "Scheme generation failed, check AI config");
-          }
+          return;
         }
+      }
+
+      await new Promise((r) => setTimeout(r, 1000));
+      await fetchSchemes();
+      onPlanStatusChange();
+      const newSchemes = await fetch(`/api/schemes?planId=${planId}`).then(r => r.json());
+      if (newSchemes.length > currentCount) {
+        stopLoading(isZh ? "方案生成完成" : "Scheme generated");
       } else {
-        stopLoading(isZh ? `生成失败 (${res.status})` : `Failed (${res.status})`);
+        stopLoading(isZh ? "方案生成失败，请检查 AI 配置" : "Scheme generation failed, check AI config");
       }
     } catch (err) {
       stopLoading(isZh ? `生成失败: ${err instanceof Error ? err.message : "未知错误"}` : `Failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setGenerating(false);
       setStreamingContent("");
+      setGenerationId(null);
+      setCurrentQuestion(null);
     }
   };
 
@@ -276,6 +354,14 @@ export function SchemeList({
         onClose={() => setGenerateDialogOpen(false)}
         onGenerate={handleGenerate}
         generating={generating}
+      />
+
+      <SchemeQuestionDialog
+        open={!!currentQuestion}
+        question={currentQuestion}
+        questionNumber={questionNumber}
+        totalQuestions={totalQuestions}
+        onAnswer={handleAnswer}
       />
     </div>
   );
