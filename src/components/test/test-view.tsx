@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { CheckIcon, XIcon, CircleIcon, PlayIcon, SparklesIcon } from "@/components/ui/icons";
+import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ProviderModelSelect, useDefaultProvider } from "@/components/ui/provider-model-select";
 import { useGlobalLoading } from "@/components/ui/global-loading";
 
@@ -171,6 +173,30 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
       : `Done: ${passed}/${done} passed`);
   };
 
+  // Manual add test case
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addForm, setAddForm] = useState({ name: "", description: "", type: "unit", code: "", filePath: "", taskId: "" });
+
+  const handleAddCase = async () => {
+    if (!addForm.name.trim()) return;
+    await fetch("/api/test-cases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        planId,
+        name: addForm.name,
+        description: addForm.description,
+        type: addForm.type,
+        generatedCode: addForm.code,
+        filePath: addForm.filePath || undefined,
+        scheduleItemId: addForm.taskId || undefined,
+      }),
+    });
+    setAddDialogOpen(false);
+    setAddForm({ name: "", description: "", type: "unit", code: "", filePath: "", taskId: "" });
+    await fetchSuite();
+  };
+
   const passedCount = suite?.cases.filter(c => c.status === "passed").length || 0;
   const totalCount = suite?.cases.length || 0;
 
@@ -205,11 +231,16 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
             </span>
           )}
         </div>
-        {suite && suite.cases.length > 0 && (
-          <Button size="sm" onClick={handleRunAll} disabled={runningCase !== null}>
-            <PlayIcon size={14} className="inline-block align-[-2px]" /> {runningCase ? t("common.loading") : (isZh ? "全部运行" : "Run All")}
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setAddDialogOpen(true)}>
+            {isZh ? "手动添加" : "Add Test"}
           </Button>
-        )}
+          {suite && suite.cases.length > 0 && (
+            <Button size="sm" onClick={handleRunAll} disabled={runningCase !== null}>
+              <PlayIcon size={14} className="inline-block align-[-2px]" /> {runningCase ? t("common.loading") : (isZh ? "全部运行" : "Run All")}
+          </Button>
+          )}
+        </div>
       </div>
 
       {/* Task selector for generation */}
@@ -388,6 +419,40 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
           })}
         </div>
       )}
+
+      {/* Add test case dialog */}
+      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} title={isZh ? "添加测试用例" : "Add Test Case"}>
+        <div className="space-y-3">
+          <Input label={isZh ? "测试名称" : "Test Name"} value={addForm.name} onChange={(e) => setAddForm(f => ({ ...f, name: e.target.value }))} placeholder="test_something" />
+          <Input label={isZh ? "描述" : "Description"} value={addForm.description} onChange={(e) => setAddForm(f => ({ ...f, description: e.target.value }))} placeholder={isZh ? "验证某个功能" : "Validates something"} />
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>{isZh ? "类型" : "Type"}</label>
+            <select value={addForm.type} onChange={(e) => setAddForm(f => ({ ...f, type: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm" style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}>
+              <option value="unit">Unit</option>
+              <option value="integration">Integration</option>
+              <option value="e2e">E2E</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>{isZh ? "测试代码" : "Test Code"}</label>
+            <textarea value={addForm.code} onChange={(e) => setAddForm(f => ({ ...f, code: e.target.value }))} rows={6} className="w-full rounded-md border px-3 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }} placeholder={isZh ? "测试代码..." : "Test code..."} />
+          </div>
+          <Input label={isZh ? "文件路径" : "File Path"} value={addForm.filePath} onChange={(e) => setAddForm(f => ({ ...f, filePath: e.target.value }))} placeholder="tests/test_something.rs" />
+          {tasks.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>{isZh ? "关联任务" : "Linked Task"}</label>
+              <select value={addForm.taskId} onChange={(e) => setAddForm(f => ({ ...f, taskId: e.target.value }))} className="w-full rounded-md border px-3 py-2 text-sm" style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}>
+                <option value="">{isZh ? "无" : "None"}</option>
+                {tasks.map(t => <option key={t.id} value={t.id}>#{t.order} {t.title}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setAddDialogOpen(false)}>{t("common.cancel")}</Button>
+            <Button onClick={handleAddCase} disabled={!addForm.name.trim()}>{t("common.create")}</Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

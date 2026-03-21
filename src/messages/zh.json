@@ -54,7 +54,8 @@
       "schedule": "任务排期",
       "codeReview": "代码审查",
       "tests": "测试",
-      "logs": "执行日志"
+      "logs": "执行日志",
+      "publish": "发布"
     },
     "deleteConfirm": "确定要删除这个计划吗？"
   },

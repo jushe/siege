@@ -6,6 +6,7 @@ import { SchemeList } from "@/components/scheme/scheme-list";
 import { ScheduleView } from "@/components/schedule/schedule-view";
 import { TestView } from "@/components/test/test-view";
 import { ReviewPanel } from "@/components/review/review-panel";
+import { PublishView } from "./publish-view";
 
 interface PlanTabsProps {
   planId: string;
@@ -85,12 +86,10 @@ export function PlanTabs({
       disabled: !["executing", "code_review", "testing", "completed"].includes(planStatus),
     },
     {
-      id: "logs",
-      label: t("plan.tabs.logs"),
+      id: "publish",
+      label: t("plan.tabs.publish"),
       content: (
-        <p className="text-gray-500 py-8 text-center">
-          View execution logs in Schedule tab
-        </p>
+        <PublishView planId={planId} projectId={projectId} />
       ),
       disabled: ![
         "executing",
