@@ -36,6 +36,8 @@ interface DiffViewerProps {
   comments: ReviewComment[];
   reviewId: string;
   onCommentAdded: () => void;
+  taskTitle?: string;
+  taskOrder?: number;
 }
 
 const severityColors: Record<string, string> = {
@@ -122,6 +124,8 @@ export function DiffViewer({
   comments,
   reviewId,
   onCommentAdded,
+  taskTitle,
+  taskOrder,
 }: DiffViewerProps) {
   const t = useTranslations();
   const isZh = t("common.back") === "返回";
@@ -205,8 +209,13 @@ export function DiffViewer({
 
   return (
     <div className="flex-1 overflow-auto">
-      <div className="sticky top-0 px-4 py-2 font-mono text-xs z-10" style={{ background: "var(--background)", borderBottom: "1px solid var(--card-border)", color: "var(--muted)" }}>
-        {filePath}
+      <div className="sticky top-0 px-4 py-2 font-mono text-xs z-10 flex items-center gap-2" style={{ background: "var(--background)", borderBottom: "1px solid var(--card-border)", color: "var(--muted)" }}>
+        <span className="flex-1 truncate">{filePath}</span>
+        {taskTitle && (
+          <span className="shrink-0 text-[10px] font-sans font-medium px-1.5 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>
+            #{taskOrder} {taskTitle}
+          </span>
+        )}
       </div>
       <div className="font-mono text-xs">
         {diffLines.map((line, i) => {

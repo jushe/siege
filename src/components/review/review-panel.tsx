@@ -451,6 +451,8 @@ export function ReviewPanel({
                       comments={latestReview?.comments || []}
                       reviewId={latestReview?.id || ""}
                       onCommentAdded={() => latestReview && fetchComments(latestReview.id)}
+                      taskTitle={snap.taskTitle}
+                      taskOrder={snap.taskOrder}
                     />
                   );
                 })()
