@@ -130,8 +130,12 @@ export function ScheduleView({
             // No more pending tasks — keep polling in case new ones appear
             break;
           }
-          // Execute with full progress display
-          await handleExecuteItem(data.nextTask.itemId);
+          // Execute with progress label showing task order
+          const { title, order, completedCount, totalCount } = data.nextTask;
+          const label = isZh
+            ? `[${completedCount + 1}/${totalCount}] #${order} ${title}`
+            : `[${completedCount + 1}/${totalCount}] #${order} ${title}`;
+          await handleExecuteItem(data.nextTask.itemId, [], label);
           await fetchSchedule();
           onPlanStatusChange();
           // Immediately continue to next task (no delay)
@@ -264,9 +268,9 @@ export function ScheduleView({
     setRunDialogItem(item);
   };
 
-  const handleExecuteItem = async (itemId: string, skills: string[] = []) => {
+  const handleExecuteItem = async (itemId: string, skills: string[] = [], progressLabel?: string) => {
     setExecuting(itemId);
-    startLoading(isZh ? "AI 正在执行任务..." : "AI executing task...");
+    startLoading(progressLabel || (isZh ? "AI 正在执行任务..." : "AI executing task..."));
     try {
       const res = await fetch("/api/execute", {
         method: "POST",

@@ -55,9 +55,18 @@ export async function POST() {
         .run();
     }
 
+    const completedCount = allItems.filter(i => i.status === "completed").length;
+    const totalCount = allItems.length;
+
     return NextResponse.json({
       executed: true,
-      nextTask: { itemId: nextPending.id, title: nextPending.title },
+      nextTask: {
+        itemId: nextPending.id,
+        title: nextPending.title,
+        order: nextPending.order,
+        completedCount,
+        totalCount,
+      },
     });
   }
 
