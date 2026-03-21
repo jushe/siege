@@ -321,7 +321,7 @@ export function ReviewPanel({
         <h4 className="font-semibold">
           {type === "scheme" ? <><FileStackIcon size={16} className="inline-block align-[-2px]" /> </> : <><CodeIcon size={16} className="inline-block align-[-2px]" /> </>}{type === "scheme" ? t("review.schemeReview") : t("review.codeReview")}
         </h4>
-        {(canReview || isInProgress) && (
+        {(canReview || isInProgress || latestReview) && (
           <div className="flex items-center gap-2">
             <ProviderModelSelect
               provider={reviewProvider}
