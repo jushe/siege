@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
-import { CheckIcon, XIcon, CircleIcon } from "@/components/ui/icons";
+import { CheckIcon, XIcon, CircleIcon, PlayIcon, SparklesIcon } from "@/components/ui/icons";
+import { ProviderModelSelect, useDefaultProvider } from "@/components/ui/provider-model-select";
 
 interface TestResult {
   id: string;
@@ -25,6 +26,7 @@ interface TestCase {
   generatedCode: string | null;
   filePath: string | null;
   status: string;
+  scheduleItemId: string | null;
   results: TestResult[];
 }
 
@@ -35,22 +37,36 @@ interface TestSuite {
   cases: TestCase[];
 }
 
+interface ScheduleTask {
+  id: string;
+  title: string;
+  order: number;
+  status: string;
+  fileCount: number;
+}
+
 interface TestViewProps {
   planId: string;
   planStatus: string;
   onPlanStatusChange: () => void;
 }
 
-export function TestView({
-  planId,
-  planStatus,
-  onPlanStatusChange,
-}: TestViewProps) {
+export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewProps) {
   const t = useTranslations();
+  const isZh = t("common.back") === "返回";
   const [suite, setSuite] = useState<TestSuite | null>(null);
+  const [tasks, setTasks] = useState<ScheduleTask[]>([]);
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [generating, setGenerating] = useState(false);
   const [runningCase, setRunningCase] = useState<string | null>(null);
   const [expandedCase, setExpandedCase] = useState<string | null>(null);
+  const [provider, setProvider] = useState("");
+  const [model, setModel] = useState("");
+  const defaultProvider = useDefaultProvider();
+
+  useEffect(() => {
+    if (defaultProvider && !provider) setProvider(defaultProvider);
+  }, [defaultProvider]);
 
   const fetchSuite = async () => {
     const res = await fetch(`/api/test-suites?planId=${planId}`);
@@ -58,17 +74,49 @@ export function TestView({
     setSuite(data);
   };
 
+  const fetchTasks = async () => {
+    const res = await fetch(`/api/snapshots/tasks?planId=${planId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setTasks(data);
+    }
+  };
+
   useEffect(() => {
     fetchSuite();
+    fetchTasks();
   }, [planId]);
 
+  const toggleTask = (id: string) => {
+    setSelectedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (selectedTasks.size === tasks.length) {
+      setSelectedTasks(new Set());
+    } else {
+      setSelectedTasks(new Set(tasks.map(t => t.id)));
+    }
+  };
+
   const handleGenerate = async () => {
+    if (selectedTasks.size === 0) return;
     setGenerating(true);
     try {
       await fetch("/api/test-suites/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, provider: "anthropic" }),
+        body: JSON.stringify({
+          planId,
+          provider: provider || undefined,
+          model: model || undefined,
+          scheduleItemIds: Array.from(selectedTasks),
+        }),
       });
       await fetchSuite();
       onPlanStatusChange();
@@ -100,145 +148,212 @@ export function TestView({
     onPlanStatusChange();
   };
 
-  const passedCount =
-    suite?.cases.filter((c) => c.status === "passed").length || 0;
+  const passedCount = suite?.cases.filter(c => c.status === "passed").length || 0;
   const totalCount = suite?.cases.length || 0;
 
+  // Group cases by task
+  const casesByTask = new Map<string, { title: string; order: number; cases: TestCase[] }>();
+  if (suite) {
+    for (const tc of suite.cases) {
+      const taskId = tc.scheduleItemId || "_unlinked";
+      if (!casesByTask.has(taskId)) {
+        const task = tasks.find(t => t.id === taskId);
+        casesByTask.set(taskId, {
+          title: task?.title || (isZh ? "未关联任务" : "Unlinked"),
+          order: task?.order ?? 999,
+          cases: [],
+        });
+      }
+      casesByTask.get(taskId)!.cases.push(tc);
+    }
+  }
+  const sortedGroups = [...casesByTask.values()].sort((a, b) => a.order - b.order);
+  const hasGroups = sortedGroups.length > 1 || (sortedGroups.length === 1 && sortedGroups[0].order !== 999);
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h3 className="text-lg font-semibold">{t("plan.tabs.tests")}</h3>
           {suite && totalCount > 0 && (
-            <span className="text-sm text-gray-500">
-              {passedCount}/{totalCount} passed
+            <span className="text-sm" style={{ color: "var(--muted)" }}>
+              {passedCount}/{totalCount} {isZh ? "通过" : "passed"}
             </span>
           )}
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="secondary"
-            onClick={handleGenerate}
-            disabled={generating}
-          >
-            {generating ? t("common.loading") : t("scheme.generate")}
+        {suite && suite.cases.length > 0 && (
+          <Button size="sm" onClick={handleRunAll} disabled={runningCase !== null}>
+            <PlayIcon size={14} className="inline-block align-[-2px]" /> {runningCase ? t("common.loading") : (isZh ? "全部运行" : "Run All")}
           </Button>
-          {suite && suite.cases.length > 0 && (
-            <Button onClick={handleRunAll} disabled={runningCase !== null}>
-              {runningCase ? t("common.loading") : "Run All"}
-            </Button>
-          )}
-        </div>
+        )}
       </div>
 
-      {!suite || suite.cases.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">
-          {t("common.noData")}
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {suite.cases.map((tc) => (
-            <div key={tc.id} className="rounded-lg border bg-white">
-              <div
-                className="p-4 flex items-center justify-between cursor-pointer"
-                onClick={() =>
-                  setExpandedCase(
-                    expandedCase === tc.id ? null : tc.id
-                  )
-                }
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-lg">
-                    {tc.status === "passed"
-                      ? <CheckIcon size={18} className="inline-block text-green-600" />
-                      : tc.status === "failed"
-                        ? <XIcon size={18} className="inline-block text-red-600" />
-                        : <CircleIcon size={18} className="inline-block text-gray-400" />}
+      {/* Task selector for generation */}
+      {tasks.length > 0 && (
+        <div className="rounded-lg border p-4" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
+              {isZh ? "选择要测试的已完成任务" : "Select completed tasks to test"}
+            </h4>
+            <button onClick={selectAll} className="text-xs" style={{ color: "var(--muted)" }}>
+              {selectedTasks.size === tasks.length ? (isZh ? "取消全选" : "Deselect All") : (isZh ? "全选" : "Select All")}
+            </button>
+          </div>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {tasks.map((task) => {
+              const existingCases = suite?.cases.filter(c => c.scheduleItemId === task.id) || [];
+              const taskPassed = existingCases.length > 0 && existingCases.every(c => c.status === "passed");
+              return (
+                <label
+                  key={task.id}
+                  className="flex items-center gap-3 px-3 py-2 rounded cursor-pointer hover:opacity-80"
+                  style={{ background: selectedTasks.has(task.id) ? "rgba(59,130,246,0.1)" : undefined }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedTasks.has(task.id)}
+                    onChange={() => toggleTask(task.id)}
+                    className="rounded"
+                  />
+                  <span className="text-sm flex-1" style={{ color: "var(--foreground)" }}>
+                    #{task.order} {task.title}
                   </span>
-                  <span className="font-mono text-sm">{tc.name}</span>
-                  <StatusBadge status={tc.status} label={tc.status} />
-                  <span className="text-xs text-gray-400">{tc.type}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  {tc.results.length > 0 && (
-                    <span className="text-xs text-gray-400">
-                      {tc.results[tc.results.length - 1].durationMs}ms
+                  <span className="text-[10px]" style={{ color: "var(--muted)" }}>
+                    {task.fileCount} {isZh ? "文件" : "files"}
+                  </span>
+                  {existingCases.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                      background: taskPassed ? "rgba(34,197,94,0.15)" : "rgba(59,130,246,0.15)",
+                      color: taskPassed ? "#86efac" : "#93c5fd",
+                    }}>
+                      {existingCases.filter(c => c.status === "passed").length}/{existingCases.length}
                     </span>
                   )}
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRunCase(tc.id);
-                    }}
-                    disabled={runningCase !== null}
-                  >
-                    {runningCase === tc.id ? "..." : "Run"}
-                  </Button>
-                </div>
-              </div>
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <ProviderModelSelect
+              provider={provider}
+              model={model}
+              onProviderChange={setProvider}
+              onModelChange={setModel}
+              disabled={generating}
+              compact
+            />
+            <Button
+              onClick={handleGenerate}
+              disabled={generating || selectedTasks.size === 0}
+              size="sm"
+            >
+              <SparklesIcon size={14} className="inline-block align-[-2px]" /> {generating
+                ? (isZh ? "生成中..." : "Generating...")
+                : (isZh ? `生成测试 (${selectedTasks.size})` : `Generate Tests (${selectedTasks.size})`)}
+            </Button>
+          </div>
+        </div>
+      )}
 
-              {expandedCase === tc.id && (
-                <div className="border-t px-4 pb-4 space-y-3">
-                  {tc.description && (
-                    <div className="pt-3">
-                      <MarkdownRenderer content={tc.description} />
+      {tasks.length === 0 && (
+        <p className="text-sm text-center py-4" style={{ color: "var(--muted)" }}>
+          {isZh ? "暂无已完成的任务。请先执行排期任务。" : "No completed tasks yet. Execute schedule tasks first."}
+        </p>
+      )}
+
+      {/* Test cases grouped by task */}
+      {suite && suite.cases.length > 0 && (
+        <div className="space-y-3">
+          {sortedGroups.map((group) => {
+            const groupPassed = group.cases.filter(c => c.status === "passed").length;
+            return (
+              <div key={group.order} className="rounded-lg border" style={{ borderColor: "var(--card-border)" }}>
+                {hasGroups && (
+                  <div className="px-4 py-2 flex items-center justify-between" style={{ background: "var(--background)", borderBottom: "1px solid var(--card-border)" }}>
+                    <span className="text-xs font-medium" style={{ color: "var(--muted)" }}>
+                      #{group.order} {group.title}
+                    </span>
+                    <span className="text-[10px]" style={{ color: groupPassed === group.cases.length ? "#86efac" : "var(--muted)" }}>
+                      {groupPassed}/{group.cases.length}
+                    </span>
+                  </div>
+                )}
+                {group.cases.map((tc) => (
+                  <div key={tc.id} style={{ borderBottom: "1px solid var(--card-border)" }}>
+                    <div
+                      className="px-4 py-3 flex items-center justify-between cursor-pointer hover:opacity-80"
+                      style={{ background: "var(--card)" }}
+                      onClick={() => setExpandedCase(expandedCase === tc.id ? null : tc.id)}
+                    >
+                      <div className="flex items-center gap-2">
+                        {tc.status === "passed"
+                          ? <CheckIcon size={16} className="text-green-500" />
+                          : tc.status === "failed"
+                            ? <XIcon size={16} className="text-red-500" />
+                            : <CircleIcon size={16} className="text-gray-500" />}
+                        <span className="font-mono text-sm" style={{ color: "var(--foreground)" }}>{tc.name}</span>
+                        <StatusBadge status={tc.type} label={tc.type} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {tc.results.length > 0 && (
+                          <span className="text-xs" style={{ color: "var(--muted)" }}>
+                            {tc.results[tc.results.length - 1].durationMs}ms
+                          </span>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => { e.stopPropagation(); handleRunCase(tc.id); }}
+                          disabled={runningCase !== null}
+                        >
+                          {runningCase === tc.id ? "..." : (isZh ? "运行" : "Run")}
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                  {tc.generatedCode && (
-                    <div className="pt-2">
-                      <h5 className="text-sm font-medium mb-1">
-                        Generated Code
-                      </h5>
-                      <MarkdownRenderer
-                        content={`\`\`\`\n${tc.generatedCode}\n\`\`\``}
-                      />
-                    </div>
-                  )}
-                  {tc.results.length > 0 && (
-                    <div className="pt-2">
-                      <h5 className="text-sm font-medium mb-1">
-                        Results ({tc.results.length} runs)
-                      </h5>
-                      {tc.results
-                        .slice()
-                        .reverse()
-                        .map((r) => (
-                          <div
-                            key={r.id}
-                            className="text-xs bg-gray-50 p-3 rounded mb-2"
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              <StatusBadge
-                                status={r.status}
-                                label={r.status}
-                              />
-                              <span className="text-gray-400">
-                                {r.durationMs}ms
-                              </span>
-                              <span className="text-gray-400" suppressHydrationWarning>
-                                {new Date(r.runAt).toLocaleString()}
-                              </span>
-                            </div>
-                            {r.output && (
-                              <pre className="whitespace-pre-wrap mt-1">
-                                {r.output}
-                              </pre>
-                            )}
-                            {r.errorMessage && (
-                              <pre className="whitespace-pre-wrap text-red-600 mt-1">
-                                {r.errorMessage}
-                              </pre>
-                            )}
+
+                    {expandedCase === tc.id && (
+                      <div className="px-4 pb-4 space-y-3" style={{ borderTop: "1px solid var(--card-border)", background: "var(--card)" }}>
+                        {tc.description && (
+                          <div className="pt-3">
+                            <MarkdownRenderer content={tc.description} />
                           </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+                        )}
+                        {tc.generatedCode && (
+                          <div className="pt-2">
+                            <h5 className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
+                              {isZh ? "生成的测试代码" : "Generated Code"}
+                            </h5>
+                            <MarkdownRenderer content={`\`\`\`\n${tc.generatedCode}\n\`\`\``} />
+                          </div>
+                        )}
+                        {tc.results.length > 0 && (
+                          <div className="pt-2">
+                            <h5 className="text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
+                              {isZh ? `运行记录 (${tc.results.length})` : `Results (${tc.results.length})`}
+                            </h5>
+                            {tc.results.slice().reverse().map((r) => (
+                              <div key={r.id} className="text-xs p-3 rounded mb-2" style={{ background: "var(--background)", color: "var(--foreground)" }}>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <StatusBadge status={r.status} label={r.status} />
+                                  <span style={{ color: "var(--muted)" }}>{r.durationMs}ms</span>
+                                  <span style={{ color: "var(--muted)" }} suppressHydrationWarning>
+                                    {new Date(r.runAt).toLocaleString()}
+                                  </span>
+                                </div>
+                                {r.output && <pre className="whitespace-pre-wrap mt-1">{r.output}</pre>}
+                                {r.errorMessage && <pre className="whitespace-pre-wrap text-red-400 mt-1">{r.errorMessage}</pre>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

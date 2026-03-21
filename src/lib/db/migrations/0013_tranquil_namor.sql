@@ -1,0 +1,1 @@
+ALTER TABLE `test_cases` ADD `schedule_item_id` text;

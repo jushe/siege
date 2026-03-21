@@ -155,6 +155,7 @@ export const testCases = sqliteTable("test_cases", {
   testSuiteId: text("test_suite_id")
     .notNull()
     .references(() => testSuites.id, { onDelete: "cascade" }),
+  scheduleItemId: text("schedule_item_id"),
   name: text("name").notNull(),
   description: text("description").default(""),
   type: text("type", { enum: ["unit", "integration", "e2e"] })

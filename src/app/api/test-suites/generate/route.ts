@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { plans, schemes, testSuites, testCases, projects } from "@/lib/db/schema";
+import { plans, schedules, scheduleItems, fileSnapshots, testSuites, testCases, projects } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { generateTests } from "@/lib/ai/test-generator";
 import { resolveStepConfig } from "@/lib/ai/config";
@@ -8,57 +8,69 @@ import type { Provider } from "@/lib/ai/provider";
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { planId, provider, model } = body as {
+  const { planId, provider, model, scheduleItemIds } = body as {
     planId: string;
-    provider: Provider;
+    provider?: string;
     model?: string;
+    scheduleItemIds?: string[];
   };
 
-  if (!planId || !provider) {
-    return NextResponse.json(
-      { error: "planId and provider are required" },
-      { status: 400 }
-    );
+  if (!planId) {
+    return NextResponse.json({ error: "planId is required" }, { status: 400 });
   }
 
   const db = getDb();
   const plan = db.select().from(plans).where(eq(plans.id, planId)).get();
-  if (!plan) {
-    return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+  if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
+
+  const project = db.select().from(projects).where(eq(projects.id, plan.projectId)).get();
+  if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 });
+
+  // Get completed schedule items
+  const schedule = db.select().from(schedules).where(eq(schedules.planId, planId)).get();
+  if (!schedule) return NextResponse.json({ error: "No schedule found" }, { status: 400 });
+
+  let completedItems = db.select().from(scheduleItems)
+    .where(eq(scheduleItems.scheduleId, schedule.id))
+    .all()
+    .filter(i => i.status === "completed")
+    .sort((a, b) => a.order - b.order);
+
+  // Filter to selected items if provided
+  if (scheduleItemIds && scheduleItemIds.length > 0) {
+    const idSet = new Set(scheduleItemIds);
+    completedItems = completedItems.filter(i => idSet.has(i.id));
   }
 
-  const project = db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, plan.projectId))
-    .get();
-  if (!project) {
-    return NextResponse.json({ error: "Project not found" }, { status: 404 });
+  if (completedItems.length === 0) {
+    return NextResponse.json({ error: "No completed tasks to test" }, { status: 400 });
   }
 
-  const schemeList = db
-    .select()
-    .from(schemes)
-    .where(eq(schemes.planId, planId))
-    .all();
+  // Build task contexts from file snapshots
+  const tasks = completedItems.map((item) => {
+    const snaps = db.select().from(fileSnapshots)
+      .where(eq(fileSnapshots.scheduleItemId, item.id))
+      .all();
+    // Deduplicate by filePath
+    const fileMap = new Map<string, { filePath: string; contentAfter: string }>();
+    for (const snap of snaps) {
+      fileMap.set(snap.filePath, { filePath: snap.filePath, contentAfter: snap.contentAfter || "" });
+    }
+    return {
+      scheduleItemId: item.id,
+      order: item.order,
+      title: item.title,
+      description: item.description || "",
+      files: Array.from(fileMap.values()),
+    };
+  });
 
-  // Update suite status
-  let suite = db
-    .select()
-    .from(testSuites)
-    .where(eq(testSuites.planId, planId))
-    .get();
-
+  // Create or update suite
+  let suite = db.select().from(testSuites).where(eq(testSuites.planId, planId)).get();
   if (!suite) {
     const suiteId = crypto.randomUUID();
-    db.insert(testSuites)
-      .values({ id: suiteId, planId, status: "generating" })
-      .run();
-    suite = db
-      .select()
-      .from(testSuites)
-      .where(eq(testSuites.id, suiteId))
-      .get()!;
+    db.insert(testSuites).values({ id: suiteId, planId, status: "generating" }).run();
+    suite = db.select().from(testSuites).where(eq(testSuites.id, suiteId)).get()!;
   } else {
     db.update(testSuites)
       .set({ status: "generating", updatedAt: new Date().toISOString() })
@@ -70,34 +82,40 @@ export async function POST(req: NextRequest) {
     const resolved = resolveStepConfig("test", provider, model);
     const generatedCases = await generateTests({
       planName: plan.name,
-      schemes: schemeList.map((s) => ({
-        title: s.title,
-        content: s.content || "",
-      })),
+      tasks,
       targetRepoPath: project.targetRepoPath,
       provider: resolved.provider as Provider,
       model: resolved.model,
     });
 
-    // Delete existing cases
-    db.delete(testCases)
-      .where(eq(testCases.testSuiteId, suite.id))
-      .run();
+    // Delete old cases for the selected tasks only (keep other tasks' tests)
+    if (scheduleItemIds && scheduleItemIds.length > 0) {
+      for (const itemId of scheduleItemIds) {
+        const oldCases = db.select().from(testCases)
+          .where(eq(testCases.testSuiteId, suite.id))
+          .all()
+          .filter(c => c.scheduleItemId === itemId);
+        for (const c of oldCases) {
+          db.delete(testCases).where(eq(testCases.id, c.id)).run();
+        }
+      }
+    } else {
+      db.delete(testCases).where(eq(testCases.testSuiteId, suite.id)).run();
+    }
 
     // Insert generated cases
     for (const tc of generatedCases) {
-      db.insert(testCases)
-        .values({
-          id: crypto.randomUUID(),
-          testSuiteId: suite.id,
-          name: tc.name,
-          description: tc.description,
-          type: tc.type,
-          generatedCode: tc.generatedCode,
-          filePath: tc.filePath,
-          status: "pending",
-        })
-        .run();
+      db.insert(testCases).values({
+        id: crypto.randomUUID(),
+        testSuiteId: suite.id,
+        scheduleItemId: tc.scheduleItemId || null,
+        name: tc.name,
+        description: tc.description,
+        type: tc.type,
+        generatedCode: tc.generatedCode,
+        filePath: tc.filePath,
+        status: "pending",
+      }).run();
     }
 
     db.update(testSuites)
@@ -105,30 +123,20 @@ export async function POST(req: NextRequest) {
       .where(eq(testSuites.id, suite.id))
       .run();
 
-    // Transition plan to testing if needed
-    if (plan.status === "executing") {
+    if (plan.status === "executing" || plan.status === "code_review") {
       db.update(plans)
         .set({ status: "testing", updatedAt: new Date().toISOString() })
         .where(eq(plans.id, planId))
         .run();
     }
 
-    const cases = db
-      .select()
-      .from(testCases)
-      .where(eq(testCases.testSuiteId, suite.id))
-      .all();
-
+    const cases = db.select().from(testCases).where(eq(testCases.testSuiteId, suite.id)).all();
     return NextResponse.json({ ...suite, cases }, { status: 201 });
   } catch (err) {
     db.update(testSuites)
       .set({ status: "failed", updatedAt: new Date().toISOString() })
       .where(eq(testSuites.id, suite.id))
       .run();
-
-    return NextResponse.json(
-      { error: `Failed to generate tests: ${err}` },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: `Failed: ${err}` }, { status: 500 });
   }
 }
