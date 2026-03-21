@@ -11,6 +11,8 @@ import { FileSidebar } from "./file-sidebar";
 import { DiffViewer } from "./diff-viewer";
 import { severityIcons, FileStackIcon, CodeIcon, SearchIcon, RefreshIcon, HourglassIcon, BarChartIcon, ClipboardIcon, WrenchIcon, CheckIcon, XIcon, type IconProps } from "@/components/ui/icons";
 import { ProviderModelSelect } from "@/components/ui/provider-model-select";
+import { Dialog } from "@/components/ui/dialog";
+import { CheckCircleIcon, FlaskIcon } from "@/components/ui/icons";
 
 interface ReviewComment {
   id: string;
@@ -238,12 +240,22 @@ export function ReviewPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ resolved }),
     });
-    await fetchReviews();
+    const fresh = await fetchReviews();
+    if (resolved) checkAllResolved(fresh);
   };
 
   const [fixingItem, setFixingItem] = useState<string | null>(null);
   const [fixingAll, setFixingAll] = useState(false);
   const [fixPromptItem, setFixPromptItem] = useState<ReviewItem | null>(null);
+  const [allResolvedPrompt, setAllResolvedPrompt] = useState(false);
+
+  /** Check if all findings resolved after any resolve action */
+  const checkAllResolved = (freshReviews?: Review[]) => {
+    const rev = freshReviews ? freshReviews[freshReviews.length - 1] : latestReview;
+    if (rev && rev.items.length > 0 && rev.items.every((i: ReviewItem) => i.resolved)) {
+      setAllResolvedPrompt(true);
+    }
+  };
   const [fixUserNote, setFixUserNote] = useState("");
   const [reviewProvider, setReviewProvider] = useState("");
   const [reviewModel, setReviewModel] = useState("");
@@ -368,8 +380,9 @@ export function ReviewPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ resolved: true }),
     });
-    await fetchReviews();
+    const fresh = await fetchReviews();
     onPlanStatusChange();
+    checkAllResolved(fresh);
   };
 
   const canReview =
@@ -843,6 +856,60 @@ export function ReviewPanel({
           {t("review.noReview")}
         </p>
       ) : null}
+
+      {/* All findings resolved prompt */}
+      <Dialog
+        open={allResolvedPrompt}
+        onClose={() => setAllResolvedPrompt(false)}
+        title={isZh ? "所有审查意见已处理" : "All Findings Resolved"}
+      >
+        <div className="space-y-4">
+          <div className="text-center py-2">
+            <CheckCircleIcon size={40} className="mx-auto text-green-500" />
+            <p className="text-sm mt-3" style={{ color: "var(--foreground)" }}>
+              {isZh
+                ? "所有审查意见都已处理完毕，接下来你可以："
+                : "All review findings have been resolved. What would you like to do next?"}
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Button
+              className="w-full"
+              onClick={async () => {
+                setAllResolvedPrompt(false);
+                // Navigate to test tab by triggering plan status change
+                if (type === "implementation") {
+                  await fetch(`/api/plans/${planId}/review-action`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ action: "accept" }),
+                  });
+                  onPlanStatusChange();
+                }
+              }}
+            >
+              <FlaskIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "进入测试阶段" : "Proceed to Testing"}
+            </Button>
+            <Button
+              variant="secondary"
+              className="w-full"
+              onClick={async () => {
+                setAllResolvedPrompt(false);
+                handleGenerate();
+              }}
+            >
+              <RefreshIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新审查" : "Re-review"}
+            </Button>
+            <Button
+              variant="ghost"
+              className="w-full"
+              onClick={() => setAllResolvedPrompt(false)}
+            >
+              {isZh ? "暂不操作" : "Do Nothing"}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }
