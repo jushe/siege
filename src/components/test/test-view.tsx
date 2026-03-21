@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { CheckIcon, XIcon, CircleIcon, PlayIcon, SparklesIcon } from "@/components/ui/icons";
 import { ProviderModelSelect, useDefaultProvider } from "@/components/ui/provider-model-select";
+import { useGlobalLoading } from "@/components/ui/global-loading";
 
 interface TestResult {
   id: string;
@@ -63,6 +64,7 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const defaultProvider = useDefaultProvider();
+  const { startLoading, updateContent, stopLoading } = useGlobalLoading();
 
   useEffect(() => {
     if (defaultProvider && !provider) setProvider(defaultProvider);
@@ -107,6 +109,9 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
   const handleGenerate = async () => {
     if (selectedTasks.size === 0) return;
     setGenerating(true);
+    const taskNames = tasks.filter(t => selectedTasks.has(t.id)).map(t => `#${t.order} ${t.title}`);
+    startLoading(isZh ? `生成测试用例 (${selectedTasks.size} 个任务)` : `Generating tests (${selectedTasks.size} tasks)`);
+    updateContent(taskNames.join("\n"));
     try {
       await fetch("/api/test-suites/generate", {
         method: "POST",
@@ -120,6 +125,9 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
       });
       await fetchSuite();
       onPlanStatusChange();
+      stopLoading(isZh ? "测试用例生成完成" : "Tests generated");
+    } catch {
+      stopLoading(isZh ? "生成失败" : "Generation failed");
     } finally {
       setGenerating(false);
     }
@@ -137,15 +145,30 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
 
   const handleRunAll = async () => {
     if (!suite) return;
-    for (const tc of suite.cases) {
-      if (tc.status !== "passed") {
-        setRunningCase(tc.id);
-        await fetch(`/api/test-cases/${tc.id}/run`, { method: "POST" });
-      }
+    const toRun = suite.cases.filter(tc => tc.status !== "passed");
+    if (toRun.length === 0) return;
+    startLoading(isZh ? `运行测试 (0/${toRun.length})` : `Running tests (0/${toRun.length})`);
+    let done = 0;
+    let passed = 0;
+    for (const tc of toRun) {
+      setRunningCase(tc.id);
+      updateContent(isZh
+        ? `[${done + 1}/${toRun.length}] ${tc.name}...`
+        : `[${done + 1}/${toRun.length}] ${tc.name}...`);
+      await fetch(`/api/test-cases/${tc.id}/run`, { method: "POST" });
+      done++;
+      // Quick check result
+      const res = await fetch(`/api/test-suites?planId=${planId}`);
+      const freshSuite = await res.json() as TestSuite | null;
+      const freshCase = freshSuite?.cases.find(c => c.id === tc.id);
+      if (freshCase?.status === "passed") passed++;
     }
     setRunningCase(null);
     await fetchSuite();
     onPlanStatusChange();
+    stopLoading(isZh
+      ? `测试完成: ${passed}/${done} 通过`
+      : `Done: ${passed}/${done} passed`);
   };
 
   const passedCount = suite?.cases.filter(c => c.status === "passed").length || 0;
