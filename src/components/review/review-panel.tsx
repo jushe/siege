@@ -361,7 +361,15 @@ export function ReviewPanel({
           </div>
           {streamContent ? (
             <div className="mt-3 max-h-40 overflow-y-auto text-xs font-mono text-blue-700 bg-blue-100/50 rounded p-2 whitespace-pre-wrap">
-              {streamContent.slice(-500)}
+              {(() => {
+                // Strip JSON blocks from display — show only readable text
+                const cleaned = streamContent
+                  .replace(/\{[\s\S]*\}/g, "")
+                  .replace(/\[[\s\S]*\]/g, "")
+                  .replace(/^\s*[\n]+/gm, "\n")
+                  .trim();
+                return (cleaned || (isZh ? "AI 正在生成审查结果..." : "AI generating review...")).slice(-500);
+              })()}
             </div>
           ) : (
             <p className="text-xs text-blue-500 mt-2">
