@@ -6,6 +6,7 @@ import {
   plans,
   projects,
   fileSnapshots,
+  reviewItems,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { execSync } from "child_process";
@@ -16,6 +17,32 @@ import { scanAllSkills, getSkillContent } from "@/lib/skills/registry";
 import { parseJsonBody } from "@/lib/utils";
 import fs from "fs";
 import path from "path";
+
+/** When a [fix] task completes, mark its related review findings as resolved */
+function resolveRelatedFindings(itemId: string) {
+  try {
+    const db = getDb();
+    const item = db.select().from(scheduleItems).where(eq(scheduleItems.id, itemId)).get();
+    if (!item) return;
+    // Find review items that target this schedule item
+    const findings = db.select().from(reviewItems)
+      .where(eq(reviewItems.targetId, itemId))
+      .all()
+      .filter(f => !f.resolved);
+    for (const f of findings) {
+      db.update(reviewItems).set({ resolved: true }).where(eq(reviewItems.id, f.id)).run();
+    }
+    // Also resolve findings that match the fix task title pattern
+    if (item.title.startsWith("[fix] ")) {
+      const findingTitle = item.title.replace("[fix] ", "");
+      const allFindings = db.select().from(reviewItems).all()
+        .filter(f => !f.resolved && f.title === findingTitle);
+      for (const f of allFindings) {
+        db.update(reviewItems).set({ resolved: true }).where(eq(reviewItems.id, f.id)).run();
+      }
+    }
+  } catch { /* ignore */ }
+}
 
 function getHeadHash(cwd: string): string {
   try {
@@ -453,6 +480,7 @@ Implement the changes directly. Only read files you need to modify. Do NOT scan 
             .run();
 
           captureFileSnapshots(itemId, cwd, beforeHash);
+          resolveRelatedFindings(itemId);
 
           // Don't kill the agent — keep alive for session reuse
           controller.close();
@@ -528,6 +556,7 @@ Implement the changes directly. Only read files you need to modify. Do NOT scan 
           .run();
 
         captureFileSnapshots(itemId, cwd, beforeHash);
+        resolveRelatedFindings(itemId);
         controller.close();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
