@@ -46,7 +46,13 @@ function saveScheduleFromJson(planId: string, jsonText: string) {
       startDate: itemStart.toISOString(),
       endDate: itemEnd.toISOString(),
       order: item.order || 0, status: "pending", progress: 0,
-      engine: "claude-code", skills: "[]",
+      engine: (() => {
+        const { provider } = resolveStepConfig("execute");
+        if (provider === "codex-acp") return "codex-acp";
+        // Default to ACP — only use SDK if explicitly set to an SDK provider
+        if (provider === "anthropic" || provider === "openai" || provider === "glm") return "claude-code";
+        return "acp";
+      })(), skills: "[]",
     }).run();
   }
 

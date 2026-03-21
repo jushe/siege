@@ -238,6 +238,19 @@ export function ScheduleView({
     }
   };
 
+  const handleRetry = async (item: ScheduleItem) => {
+    if (item.status === "failed") {
+      // Reset to pending first
+      await fetch(`/api/schedule-items/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "pending", progress: 0, executionLog: "" }),
+      });
+      await fetchSchedule();
+    }
+    setRunDialogItem(item);
+  };
+
   const handleExecuteItem = async (itemId: string, skills: string[] = []) => {
     setExecuting(itemId);
     startLoading(isZh ? "AI 正在执行任务..." : "AI executing task...");
@@ -529,15 +542,15 @@ export function ScheduleView({
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-sm" style={{ color: "var(--muted)" }}>{item.progress}%</span>
-                        {canEdit && item.status === "pending" && (
+                        {canEdit && (item.status === "pending" || item.status === "failed") && (
                           <>
                             <button onClick={() => startEditing(item)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--muted)" }}>{t("common.edit")}</button>
                             <button onClick={() => handleDeleteItem(item.id)} className="text-xs px-2 py-1 rounded text-red-500">{t("common.delete")}</button>
                           </>
                         )}
-                        {canExecute && item.status === "pending" && (
-                          <Button size="sm" onClick={() => setRunDialogItem(item)} disabled={executing !== null}>
-                            {executing === item.id ? t("common.loading") : (isZh ? "运行" : "Run")}
+                        {canExecute && (item.status === "pending" || item.status === "failed") && (
+                          <Button size="sm" onClick={() => handleRetry(item)} disabled={executing !== null}>
+                            {executing === item.id ? t("common.loading") : item.status === "failed" ? (isZh ? "🔄 重试" : "🔄 Retry") : (isZh ? "运行" : "Run")}
                           </Button>
                         )}
                         <button onClick={() => setSelectedItem(null)} className="text-xs px-2 py-1 rounded" style={{ color: "var(--muted)" }}>✕</button>
