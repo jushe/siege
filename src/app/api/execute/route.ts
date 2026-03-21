@@ -5,6 +5,7 @@ import {
   schedules,
   plans,
   projects,
+  fileSnapshots,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { execSync } from "child_process";
@@ -13,11 +14,57 @@ import { z } from "zod";
 import { getStepModel, resolveStepConfig } from "@/lib/ai/config";
 import { scanAllSkills, getSkillContent } from "@/lib/skills/registry";
 import { parseJsonBody } from "@/lib/utils";
+import fs from "fs";
+import path from "path";
+
+function captureFileSnapshots(itemId: string, cwd: string) {
+  try {
+    // Get list of changed files (staged + unstaged)
+    const changedFiles = execSync("git diff HEAD --name-only", {
+      cwd, encoding: "utf-8", timeout: 5000,
+    }).trim().split("\n").filter(Boolean);
+
+    // Get untracked files
+    const untrackedFiles = execSync("git ls-files --others --exclude-standard", {
+      cwd, encoding: "utf-8", timeout: 5000,
+    }).trim().split("\n").filter(Boolean);
+
+    const allFiles = [...new Set([...changedFiles, ...untrackedFiles])];
+    const db = getDb();
+
+    for (const filePath of allFiles) {
+      const fullPath = path.join(cwd, filePath);
+      // Get content before (from HEAD)
+      let contentBefore = "";
+      try {
+        contentBefore = execSync(`git show HEAD:${filePath}`, {
+          cwd, encoding: "utf-8", timeout: 5000,
+        });
+      } catch { /* new file */ }
+
+      // Get current content
+      let contentAfter = "";
+      try {
+        contentAfter = fs.readFileSync(fullPath, "utf-8");
+      } catch { /* deleted */ }
+
+      if (contentBefore === contentAfter) continue;
+
+      db.insert(fileSnapshots).values({
+        id: crypto.randomUUID(),
+        scheduleItemId: itemId,
+        filePath,
+        contentBefore,
+        contentAfter,
+      }).run();
+    }
+  } catch (err) {
+    console.error("[execute] Failed to capture snapshots:", err);
+  }
+}
 import { LspClient } from "@/lib/lsp/client";
 import { getLanguageFromPath, getServerConfig, isServerAvailable } from "@/lib/lsp/servers";
 import { AcpClient } from "@/lib/acp/client";
-import fs from "fs";
-import path from "path";
 
 function createProjectTools(repoPath: string) {
   return {
@@ -378,6 +425,8 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
             .where(eq(scheduleItems.id, itemId))
             .run();
 
+          captureFileSnapshots(itemId, cwd);
+
           // Don't kill the agent — keep alive for session reuse
           controller.close();
         } catch (err) {
@@ -451,6 +500,7 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
           .where(eq(scheduleItems.id, itemId))
           .run();
 
+        captureFileSnapshots(itemId, cwd);
         controller.close();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

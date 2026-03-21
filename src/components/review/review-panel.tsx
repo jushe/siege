@@ -25,6 +25,9 @@ interface FileSnapshot {
   filePath: string;
   contentBefore: string;
   contentAfter: string;
+  scheduleItemId?: string;
+  taskTitle?: string;
+  taskOrder?: number;
 }
 
 interface ReviewItem {
@@ -426,6 +429,8 @@ export function ReviewPanel({
                     additions: stats.additions,
                     deletions: stats.deletions,
                     findingCount,
+                    taskTitle: snap.taskTitle,
+                    taskOrder: snap.taskOrder,
                   };
                 })}
                 selectedFile={selectedFile}

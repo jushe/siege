@@ -8,6 +8,8 @@ interface FileEntry {
   additions: number;
   deletions: number;
   findingCount: number;
+  taskTitle?: string;
+  taskOrder?: number;
 }
 
 interface FileSidebarProps {
@@ -292,6 +294,50 @@ export function FileSidebar({ files, selectedFile, onSelectFile }: FileSidebarPr
     return (
       <div className="w-64 p-4" style={{ borderRight: "1px solid var(--card-border)" }}>
         <p className="text-sm" style={{ color: "var(--muted)" }}>{t("review.noChanges")}</p>
+      </div>
+    );
+  }
+
+  // Group by task if task info is available
+  const hasTaskInfo = files.some(f => f.taskTitle);
+
+  if (hasTaskInfo) {
+    const taskGroups = new Map<string, { title: string; order: number; files: FileEntry[] }>();
+    for (const file of files) {
+      const key = file.taskTitle || "Other";
+      if (!taskGroups.has(key)) {
+        taskGroups.set(key, { title: key, order: file.taskOrder || 999, files: [] });
+      }
+      taskGroups.get(key)!.files.push(file);
+    }
+    const sorted = [...taskGroups.values()].sort((a, b) => a.order - b.order);
+
+    return (
+      <div className="w-64 overflow-y-auto" style={{ background: "var(--card)", borderRight: "1px solid var(--card-border)" }}>
+        <div className="p-3" style={{ background: "var(--background)", borderBottom: "1px solid var(--card-border)" }}>
+          <h5 className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--muted)" }}>
+            {t("review.changedFiles")}
+          </h5>
+          <span className="text-[10px]" style={{ color: "var(--muted)" }}>{files.length} files · {sorted.length} tasks</span>
+        </div>
+        {sorted.map((group) => (
+          <div key={group.title}>
+            <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wide" style={{ color: "var(--muted)", background: "var(--background)", borderBottom: "1px solid var(--card-border)" }}>
+              #{group.order} {group.title}
+              <span className="ml-1 font-normal">({group.files.length})</span>
+            </div>
+            {group.files.map((file) => (
+              <FileLeaf
+                key={file.filePath}
+                file={file}
+                name={file.filePath.split("/").pop() || file.filePath}
+                isActive={selectedFile === file.filePath}
+                onSelect={() => onSelectFile(file.filePath)}
+                depth={0}
+              />
+            ))}
+          </div>
+        ))}
       </div>
     );
   }
