@@ -9,7 +9,7 @@ import { useGlobalLoading } from "@/components/ui/global-loading";
 import { computeDiffStats } from "@/lib/diff";
 import { FileSidebar } from "./file-sidebar";
 import { DiffViewer } from "./diff-viewer";
-import { severityIcons, FileStackIcon, CodeIcon, SearchIcon, RefreshIcon, HourglassIcon, BarChartIcon, ClipboardIcon, WrenchIcon, CheckIcon, type IconProps } from "@/components/ui/icons";
+import { severityIcons, FileStackIcon, CodeIcon, SearchIcon, RefreshIcon, HourglassIcon, BarChartIcon, ClipboardIcon, WrenchIcon, CheckIcon, XIcon, type IconProps } from "@/components/ui/icons";
 import { ProviderModelSelect } from "@/components/ui/provider-model-select";
 
 interface ReviewComment {
@@ -465,8 +465,8 @@ export function ReviewPanel({
               <MarkdownRenderer content={latestReview.content} />
             </div>
           )}
-          {/* Review action buttons for code review */}
-          {type === "implementation" && latestReview.status !== "in_progress" && (
+          {/* Review action buttons */}
+          {latestReview.status !== "in_progress" && (
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
@@ -474,16 +474,26 @@ export function ReviewPanel({
                   const btn = e.currentTarget;
                   btn.disabled = true;
                   btn.textContent = isZh ? "处理中..." : "Processing...";
-                  await fetch(`/api/plans/${planId}/review-action`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "accept" }),
-                  });
+                  if (type === "scheme") {
+                    await fetch(`/api/plans/${planId}/confirm`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "confirm" }),
+                    });
+                  } else {
+                    await fetch(`/api/plans/${planId}/review-action`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "accept" }),
+                    });
+                  }
                   await fetchReviews();
                   onPlanStatusChange();
                 }}
               >
-                {isZh ? "确认并进入测试" : "Accept & Test"}
+                <CheckIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
+                  ? (isZh ? "通过方案" : "Approve")
+                  : (isZh ? "通过并进入测试" : "Accept & Test")}
               </Button>
               <Button
                 size="sm"
@@ -492,15 +502,25 @@ export function ReviewPanel({
                   const btn = e.currentTarget;
                   btn.disabled = true;
                   btn.textContent = isZh ? "处理中..." : "Processing...";
-                  await fetch(`/api/plans/${planId}/review-action`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "rework" }),
-                  });
+                  if (type === "scheme") {
+                    await fetch(`/api/plans/${planId}/confirm`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "revoke" }),
+                    });
+                  } else {
+                    await fetch(`/api/plans/${planId}/review-action`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "rework" }),
+                    });
+                  }
                   onPlanStatusChange();
                 }}
               >
-                {isZh ? "返回排期修复" : "Rework"}
+                <XIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
+                  ? (isZh ? "驳回方案" : "Reject")
+                  : (isZh ? "返回排期修复" : "Rework")}
               </Button>
             </div>
           )}
