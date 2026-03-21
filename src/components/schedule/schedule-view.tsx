@@ -70,6 +70,7 @@ export function ScheduleView({
   const [runDialogItem, setRunDialogItem] = useState<ScheduleItem | null>(null);
   const [autoExecute, setAutoExecute] = useState(false);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Edit state
   const [editingItem, setEditingItem] = useState<string | null>(null);
@@ -117,33 +118,31 @@ export function ScheduleView({
   // Auto-execute: run tasks one after another with progress display
   useEffect(() => {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
     if (!autoExecute || !schedule) return;
-    let cancelled = false;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     const runLoop = async () => {
       let firstRun = true;
-      while (!cancelled) {
+      while (!controller.signal.aborted) {
         try {
-          const res = await fetch("/api/schedules/tick", { method: "POST" });
+          const res = await fetch("/api/schedules/tick", { method: "POST", signal: controller.signal });
           if (!res.ok) break;
           const data = await res.json();
           if (!data.executed || !data.nextTask) break;
 
-          // Set task timeline on first run
           if (firstRun && data.allTasks) {
             setTasks(data.allTasks);
             firstRun = false;
           }
-          // Mark current task as running
           updateTaskStatus(data.nextTask.itemId, "running");
 
           const { title, order } = data.nextTask;
-          const label = isZh
-            ? `#${order} ${title}`
-            : `#${order} ${title}`;
-          await handleExecuteItem(data.nextTask.itemId, [], label);
+          await handleExecuteItem(data.nextTask.itemId, [], `#${order} ${title}`, undefined, undefined, controller.signal);
 
-          // Mark completed and refresh
+          if (controller.signal.aborted) break;
           updateTaskStatus(data.nextTask.itemId, "completed");
           await fetchSchedule();
           onPlanStatusChange();
@@ -154,14 +153,26 @@ export function ScheduleView({
     };
 
     runLoop();
-    // Also poll periodically in case tasks become pending later (e.g. rescheduled)
-    tickRef.current = setInterval(() => { if (!executing) runLoop(); }, 30000);
-    return () => { cancelled = true; if (tickRef.current) clearInterval(tickRef.current); };
+    tickRef.current = setInterval(() => { if (!executing && !controller.signal.aborted) runLoop(); }, 30000);
+    return () => {
+      controller.abort();
+      abortRef.current = null;
+      if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
+    };
   }, [autoExecute, schedule?.id]);
 
   const handleToggleAutoExecute = async () => {
     if (!schedule) return;
     const newValue = !autoExecute;
+    if (!newValue && abortRef.current) {
+      // Cancel immediately: abort running fetch + close loading dialog
+      abortRef.current.abort();
+      abortRef.current = null;
+      setExecuting(null);
+      stopLoading(isZh ? "已停止自动执行" : "Auto-execute stopped");
+      setTasks([]);
+      await fetchSchedule();
+    }
     setAutoExecute(newValue);
     await fetch("/api/schedules/auto-execute", {
       method: "POST",
@@ -276,7 +287,7 @@ export function ScheduleView({
     setRunDialogItem(item);
   };
 
-  const handleExecuteItem = async (itemId: string, skills: string[] = [], progressLabel?: string, provider?: string, model?: string) => {
+  const handleExecuteItem = async (itemId: string, skills: string[] = [], progressLabel?: string, provider?: string, model?: string, signal?: AbortSignal) => {
     setExecuting(itemId);
     startLoading(progressLabel || (isZh ? "AI 正在执行任务..." : "AI executing task..."));
     try {
@@ -284,6 +295,7 @@ export function ScheduleView({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ itemId, skills, ...(provider && { provider }), ...(model && { model }) }),
+        signal,
       });
 
       if (res.ok && res.body) {
@@ -291,6 +303,7 @@ export function ScheduleView({
         const decoder = new TextDecoder();
         let content = "";
         while (true) {
+          if (signal?.aborted) { reader.cancel(); break; }
           const { done, value } = await reader.read();
           if (done) break;
           content += decoder.decode(value, { stream: true });
@@ -298,12 +311,17 @@ export function ScheduleView({
         }
       }
 
+      if (signal?.aborted) throw new Error("cancelled");
       await new Promise((r) => setTimeout(r, 500));
       await fetchSchedule();
       onPlanStatusChange();
       stopLoading(isZh ? "任务执行完成" : "Task completed");
-    } catch {
-      stopLoading(isZh ? "执行失败" : "Execution failed");
+    } catch (err) {
+      if (signal?.aborted) {
+        stopLoading(isZh ? "已取消自动执行" : "Auto-execute cancelled");
+      } else {
+        stopLoading(isZh ? "执行失败" : "Execution failed");
+      }
     } finally {
       setExecuting(null);
     }
