@@ -2,11 +2,14 @@
 
 import { useState, useEffect, use } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { PlanTabs } from "@/components/plan/plan-tabs";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog } from "@/components/ui/dialog";
+import { CheckCircleIcon } from "@/components/ui/icons";
 
 interface Plan {
   id: string;
@@ -24,10 +27,14 @@ export default function PlanDetailPage({
 }) {
   const { locale, projectId, planId } = use(params);
   const t = useTranslations();
+  const router = useRouter();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [editDesc, setEditDesc] = useState("");
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [completed, setCompleted] = useState(false);
 
   const fetchPlan = async () => {
     const res = await fetch(`/api/plans/${planId}`);
@@ -113,21 +120,14 @@ export default function PlanDetailPage({
               </button>
               <div className="flex-1" />
               {plan.status !== "completed" && plan.status !== "draft" && (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={async () => {
-                    if (!window.confirm(isZh ? "确定标记为完成？" : "Mark as completed?")) return;
-                    await fetch(`/api/plans/${planId}`, {
-                      method: "PUT",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ status: "completed" }),
-                    });
-                    await fetchPlan();
-                  }}
-                >
+                <Button size="sm" variant="secondary" onClick={() => setCompleteDialogOpen(true)}>
                   {isZh ? "完成" : "Complete"}
                 </Button>
+              )}
+              {plan.status === "completed" && (
+                <span className="text-xs px-2 py-1 rounded" style={{ background: "rgba(34,197,94,0.15)", color: "#86efac" }}>
+                  {isZh ? "已归档" : "Archived"}
+                </span>
               )}
             </div>
             {plan.description && (
@@ -145,6 +145,68 @@ export default function PlanDetailPage({
         projectId={projectId}
         onPlanStatusChange={fetchPlan}
       />
+
+      {/* Complete confirmation dialog */}
+      <Dialog
+        open={completeDialogOpen}
+        onClose={() => { if (!completing) setCompleteDialogOpen(false); }}
+        title={completed
+          ? (isZh ? "计划已完成" : "Plan Completed")
+          : (isZh ? "完成计划" : "Complete Plan")}
+      >
+        {completed ? (
+          <div className="text-center space-y-4 py-4">
+            <CheckCircleIcon size={48} className="mx-auto text-green-500" />
+            <p className="text-sm" style={{ color: "var(--foreground)" }}>
+              {isZh
+                ? "计划已标记为完成并进入归档状态。你可以在项目页面查看归档计划。"
+                : "Plan has been marked as completed and archived. You can view archived plans on the project page."}
+            </p>
+            <div className="flex justify-center gap-2">
+              <Button variant="secondary" onClick={() => { setCompleteDialogOpen(false); setCompleted(false); }}>
+                {isZh ? "留在此页" : "Stay Here"}
+              </Button>
+              <Button onClick={() => router.push(`/${locale}/projects/${projectId}`)}>
+                {isZh ? "返回项目" : "Back to Project"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: "var(--foreground)" }}>
+              {isZh
+                ? "确定将此计划标记为完成？完成后计划将进入归档状态。"
+                : "Mark this plan as completed? It will be archived after completion."}
+            </p>
+            <ul className="text-xs space-y-1" style={{ color: "var(--muted)" }}>
+              <li>{isZh ? "• 所有排期任务将保持当前状态" : "• All scheduled tasks will keep their current status"}</li>
+              <li>{isZh ? "• 审查和测试结果将被保留" : "• Review and test results will be preserved"}</li>
+              <li>{isZh ? "• 归档后仍可查看，但不能修改" : "• You can still view but not edit after archiving"}</li>
+            </ul>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setCompleteDialogOpen(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                onClick={async () => {
+                  setCompleting(true);
+                  await fetch(`/api/plans/${planId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: "completed" }),
+                  });
+                  await fetchPlan();
+                  setCompleting(false);
+                  setCompleted(true);
+                }}
+                disabled={completing}
+              >
+                {completing ? (isZh ? "处理中..." : "Processing...") : (isZh ? "确认完成" : "Confirm")}
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }

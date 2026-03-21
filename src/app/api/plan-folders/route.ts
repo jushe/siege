@@ -62,6 +62,9 @@ export async function GET(req: NextRequest) {
         )
         .all();
 
+  // Sort plans by updatedAt descending (newest first)
+  plansAtLevel.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
   return NextResponse.json({ folders, plans: plansAtLevel });
 }
 
