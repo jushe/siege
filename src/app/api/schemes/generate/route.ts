@@ -48,10 +48,14 @@ function saveScheme(planId: string, content: string, planStatus: string): boolea
   const cleanedContent = cleanSchemeContent(content);
   if (!cleanedContent) return false;
 
+  // Extract title from first heading, or use first line
+  const headingMatch = cleanedContent.match(/^#{1,3}\s+(.+)/m);
+  const title = headingMatch?.[1]?.replace(/[*_`~]/g, "").trim() || cleanedContent.split("\n")[0]?.slice(0, 60) || "Generated Scheme";
+
   const db = getDb();
   db.insert(schemes).values({
     id: crypto.randomUUID(), planId,
-    title: "Generated Scheme", content: cleanedContent, sourceType: "local_analysis",
+    title, content: cleanedContent, sourceType: "local_analysis",
   }).run();
 
   if (planStatus === "draft") {
