@@ -139,7 +139,13 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
     setRunningCase(caseId);
     try {
       await fetch(`/api/test-cases/${caseId}/run`, { method: "POST" });
-      await fetchSuite();
+      const freshRes = await fetch(`/api/test-suites?planId=${planId}`);
+      const freshSuite = await freshRes.json() as TestSuite | null;
+      setSuite(freshSuite);
+      const freshCase = freshSuite?.cases.find(c => c.id === caseId);
+      if (freshCase?.status === "failed") {
+        setFailedPrompt({ cases: [freshCase] });
+      }
     } finally {
       setRunningCase(null);
     }
@@ -166,11 +172,39 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
       if (freshCase?.status === "passed") passed++;
     }
     setRunningCase(null);
-    await fetchSuite();
+    const finalRes = await fetch(`/api/test-suites?planId=${planId}`);
+    const finalSuite = await finalRes.json() as TestSuite | null;
+    setSuite(finalSuite);
     onPlanStatusChange();
+    const failedCases = finalSuite?.cases.filter(c => c.status === "failed") || [];
     stopLoading(isZh
       ? `测试完成: ${passed}/${done} 通过`
       : `Done: ${passed}/${done} passed`);
+    if (failedCases.length > 0) {
+      setFailedPrompt({ cases: failedCases });
+    }
+  };
+
+  // Failed test prompt
+  const [failedPrompt, setFailedPrompt] = useState<{ cases: TestCase[] } | null>(null);
+
+  const handleCreateFixTasks = async (failedCases: TestCase[]) => {
+    for (const tc of failedCases) {
+      const lastResult = tc.results[tc.results.length - 1];
+      await fetch("/api/schedules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          planId,
+          title: `[fix] ${tc.description || tc.name}`,
+          description: `Test failed: ${tc.name}\n\n${lastResult?.errorMessage || lastResult?.output || ""}\n\nFile: ${tc.filePath || ""}`.trim(),
+          afterItemId: tc.scheduleItemId || undefined,
+          estimatedHours: 0.5,
+        }),
+      });
+    }
+    setFailedPrompt(null);
+    onPlanStatusChange();
   };
 
   // Manual add test case
@@ -452,6 +486,53 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
             <Button onClick={handleAddCase} disabled={!addForm.name.trim()}>{t("common.create")}</Button>
           </div>
         </div>
+      </Dialog>
+
+      {/* Failed tests prompt */}
+      <Dialog
+        open={!!failedPrompt}
+        onClose={() => setFailedPrompt(null)}
+        title={isZh ? "测试未通过" : "Tests Failed"}
+      >
+        {failedPrompt && (
+          <div className="space-y-4">
+            <div className="space-y-1 max-h-40 overflow-y-auto">
+              {failedPrompt.cases.map(tc => (
+                <div key={tc.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded" style={{ background: "rgba(239,68,68,0.1)", color: "#fca5a5" }}>
+                  <XIcon size={12} />
+                  <span>{tc.description || tc.name}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs" style={{ color: "var(--muted)" }}>
+              {isZh
+                ? `${failedPrompt.cases.length} 个测试未通过，你可以：`
+                : `${failedPrompt.cases.length} test(s) failed. You can:`}
+            </p>
+            <div className="space-y-2">
+              <Button
+                className="w-full"
+                onClick={() => handleCreateFixTasks(failedPrompt.cases)}
+              >
+                {isZh ? `创建 ${failedPrompt.cases.length} 个修复任务到排期` : `Create ${failedPrompt.cases.length} Fix Task(s)`}
+              </Button>
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => { setFailedPrompt(null); handleRunAll(); }}
+              >
+                {isZh ? "重新运行失败的测试" : "Re-run Failed Tests"}
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full"
+                onClick={() => setFailedPrompt(null)}
+              >
+                {isZh ? "暂不处理" : "Ignore"}
+              </Button>
+            </div>
+          </div>
+        )}
       </Dialog>
     </div>
   );
