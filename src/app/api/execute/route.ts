@@ -375,25 +375,20 @@ export async function POST(req: NextRequest) {
     .all()
     .sort((a, b) => a.order - b.order);
 
-  let previousContext = "";
-  for (const prev of allItems) {
-    if (prev.id === item.id) break;
-    if (prev.status === "completed" && prev.executionLog) {
-      previousContext += `\nCompleted Task #${prev.order} "${prev.title}":\n${prev.executionLog.slice(0, 3000)}\n`;
-    }
-  }
+  // Build lightweight context: just task titles + status, no full logs
+  const previousTasks = allItems
+    .filter(prev => prev.id !== item.id && (prev.status === "completed" || prev.status === "failed"))
+    .filter(prev => prev.order < item.order)
+    .map(prev => `- #${prev.order} ${prev.title} [${prev.status}]`)
+    .join("\n");
 
-  const prompt = `${previousContext ? `Previously completed tasks:\n${previousContext}\n---\n` : ""}
-
-Implement task #${item.order}: ${item.title}
+  const prompt = `${previousTasks ? `Context — other tasks in this plan:\n${previousTasks}\n\n---\n` : ""}Implement task #${item.order}: ${item.title}
 
 ${item.description || ""}
 
 ${skillsContent ? `Skills context:\n${skillsContent}` : ""}
 
-Use the provided tools to read the codebase, write/edit files, and run commands. Implement the changes and verify they work.
-
-You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics) for precise type information, go-to-definition, finding references, and compiler diagnostics. Use them when you need to understand types, navigate definitions, or check for errors.`;
+Read the existing codebase first to understand the current state, then implement the changes and verify they work.`;
 
   const cwd = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
   const engine = item.engine || "claude-code";
