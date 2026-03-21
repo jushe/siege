@@ -45,6 +45,7 @@ interface ReviewItem {
   lineNumber: number | null;
   taskTitle: string | null;
   taskOrder: number | null;
+  options: string | null;
 }
 
 interface Review {
@@ -344,15 +345,20 @@ export function ReviewPanel({
   };
 
   /** Accept a finding: create a sub-task in the schedule and mark resolved */
-  const handleAcceptFinding = async (item: ReviewItem) => {
-    // Create a schedule task for this finding
+  const handleAcceptFinding = async (item: ReviewItem, chosenOption?: string) => {
+    const desc = [
+      item.content || "",
+      chosenOption ? `\n**Solution:** ${chosenOption}` : "",
+      item.filePath ? `\nFile: ${item.filePath}${item.lineNumber ? `:${item.lineNumber}` : ""}` : "",
+    ].filter(Boolean).join("\n");
+
     await fetch("/api/schedules", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         planId,
         title: `[fix] ${item.title}`,
-        description: `${item.content || ""}\n\n${item.filePath ? `File: ${item.filePath}${item.lineNumber ? `:${item.lineNumber}` : ""}` : ""}`,
+        description: desc,
       }),
     });
     // Mark finding as resolved
@@ -854,7 +860,7 @@ function FindingsGroup({
   isZh: boolean;
   severityStyles: Record<string, { bg: string; border: string; color: string }>;
   onResolve: (id: string, resolved: boolean) => void;
-  onAccept: (item: ReviewItem) => Promise<void>;
+  onAccept: (item: ReviewItem, chosenOption?: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(!hasMultipleTasks || group.items.some(i => !i.resolved));
   const unresolvedCount = group.items.filter(i => !i.resolved).length;
@@ -909,27 +915,13 @@ function FindingsGroup({
                 <CheckIcon size={12} className="inline-block align-[-1px]" /> {isZh ? "已处理" : "Done"}
               </span>
             ) : (
-              <div className="flex gap-1 shrink-0">
-                <button
-                  onClick={async (e) => {
-                    const btn = e.currentTarget;
-                    btn.disabled = true;
-                    btn.textContent = "...";
-                    await onAccept(item);
-                  }}
-                  className="text-xs px-2 py-1 rounded hover:opacity-80"
-                  style={{ background: "rgba(34,197,94,0.2)", color: "#86efac" }}
-                >
-                  {isZh ? "采纳" : "Accept"}
-                </button>
-                <button
-                  onClick={() => onResolve(item.id, true)}
-                  className="text-xs px-2 py-1 rounded hover:opacity-80"
-                  style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}
-                >
-                  {isZh ? "忽略" : "Dismiss"}
-                </button>
-              </div>
+              <button
+                onClick={() => onResolve(item.id, true)}
+                className="text-xs px-2 py-1 rounded hover:opacity-80 shrink-0"
+                style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}
+              >
+                {isZh ? "忽略" : "Dismiss"}
+              </button>
             )}
           </div>
           {item.content && (
@@ -937,6 +929,46 @@ function FindingsGroup({
               <MarkdownRenderer content={item.content} />
             </div>
           )}
+          {!item.resolved && (() => {
+            const opts: string[] = item.options ? (() => { try { return JSON.parse(item.options); } catch { return []; } })() : [];
+            return opts.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <span className="text-[10px] self-center" style={{ color: "var(--muted)" }}>
+                  {isZh ? "解决方案:" : "Solutions:"}
+                </span>
+                {opts.map((opt: string, i: number) => (
+                  <button
+                    key={i}
+                    onClick={async (e) => {
+                      const btn = e.currentTarget;
+                      btn.disabled = true;
+                      btn.textContent = "...";
+                      await onAccept(item, opt);
+                    }}
+                    className="text-[11px] px-2 py-1 rounded border hover:opacity-80"
+                    style={{ borderColor: "rgba(34,197,94,0.3)", color: "#86efac", background: "rgba(34,197,94,0.1)" }}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            ) : !item.resolved ? (
+              <div className="mt-2">
+                <button
+                  onClick={async (e) => {
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    btn.textContent = "...";
+                    await onAccept(item);
+                  }}
+                  className="text-[11px] px-2 py-1 rounded hover:opacity-80"
+                  style={{ background: "rgba(34,197,94,0.2)", color: "#86efac" }}
+                >
+                  {isZh ? "采纳为子任务" : "Create Fix Task"}
+                </button>
+              </div>
+            ) : null;
+          })()}
         </div>
       ))}
     </div>

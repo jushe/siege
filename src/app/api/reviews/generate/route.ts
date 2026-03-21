@@ -64,8 +64,8 @@ function buildReviewPrompt(
 
   const itemsSchema =
     type === "implementation"
-      ? `- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical"), filePath (string, path of the file this finding relates to), lineNumber (number, the line in the new version of the file)`
-      : `- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical")`;
+      ? `- items: array of findings, each with targetId (string), title (string), content (string describing the issue), severity ("info"|"warning"|"critical"), filePath (string), lineNumber (number), options (array of 1-3 short solution suggestions, e.g. ["Use environment variables for credentials", "Move to .env file with gitignore", "Use a secrets manager"])`
+      : `- items: array of findings, each with targetId (string), title (string), content (string), severity ("info"|"warning"|"critical"), options (array of 1-3 short solution suggestions)`;
 
   // Detect language from content
   const hasChinese = /[\u4e00-\u9fff]/.test(itemsSummary);
@@ -303,6 +303,7 @@ export async function POST(req: NextRequest) {
               resolvedTargetId = fileToItemId.get(item.filePath)!;
             }
 
+            const opts = Array.isArray(item.options) ? item.options.filter((o: unknown) => typeof o === "string") : [];
             db.insert(reviewItems)
               .values({
                 id: crypto.randomUUID(),
@@ -315,6 +316,7 @@ export async function POST(req: NextRequest) {
                 resolved: false,
                 filePath: item.filePath || null,
                 lineNumber: item.lineNumber || null,
+                options: opts.length > 0 ? JSON.stringify(opts) : null,
               })
               .run();
           }

@@ -272,6 +272,7 @@ export const reviewItems = sqliteTable("review_items", {
   resolved: integer("resolved", { mode: "boolean" }).notNull().default(false),
   filePath: text("file_path"),
   lineNumber: integer("line_number"),
+  options: text("options"),
 });
 
 export const fileSnapshots = sqliteTable("file_snapshots", {
