@@ -388,7 +388,7 @@ ${item.description || ""}
 
 ${skillsContent ? `Skills context:\n${skillsContent}` : ""}
 
-Read the existing codebase first to understand the current state, then implement the changes and verify they work.`;
+Implement the changes directly. Only read files you need to modify. Do NOT scan the entire codebase — focus on the specific files relevant to this task.`;
 
   const cwd = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
   const engine = item.engine || "claude-code";
