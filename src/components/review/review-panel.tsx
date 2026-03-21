@@ -343,6 +343,28 @@ export function ReviewPanel({
       : `Done: ${fixed} fixed${failed > 0 ? `, ${failed} failed` : ""}`);
   };
 
+  /** Accept a finding: create a sub-task in the schedule and mark resolved */
+  const handleAcceptFinding = async (item: ReviewItem) => {
+    // Create a schedule task for this finding
+    await fetch("/api/schedules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        planId,
+        title: `[fix] ${item.title}`,
+        description: `${item.content || ""}\n\n${item.filePath ? `File: ${item.filePath}${item.lineNumber ? `:${item.lineNumber}` : ""}` : ""}`,
+      }),
+    });
+    // Mark finding as resolved
+    await fetch(`/api/review-items/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ resolved: true }),
+    });
+    await fetchReviews();
+    onPlanStatusChange();
+  };
+
   const canReview =
     type === "scheme"
       ? planStatus === "reviewing"
@@ -427,10 +449,19 @@ export function ReviewPanel({
             </span>
           </div>
           {streamContent ? (
-            <div className="mt-3 text-xs rounded p-2" style={{ background: "rgba(59,130,246,0.1)", color: "#93c5fd" }}>
-              {isZh
-                ? `AI 正在生成审查结果... (${Math.round(streamContent.length / 1024)}KB)`
-                : `AI generating review... (${Math.round(streamContent.length / 1024)}KB)`}
+            <div className="mt-3 max-h-40 overflow-y-auto text-xs rounded p-2 whitespace-pre-wrap" style={{ background: "rgba(59,130,246,0.1)", color: "#93c5fd" }}>
+              {(() => {
+                // Extract "summary" value from partial JSON, or show non-JSON text
+                const summaryMatch = streamContent.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+                if (summaryMatch) {
+                  return summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').slice(-500);
+                }
+                // If no JSON at all, show the text
+                if (!streamContent.includes('"items"') && !streamContent.includes('"summary"')) {
+                  return streamContent.slice(-500);
+                }
+                return isZh ? `AI 正在生成审查结果... (${Math.round(streamContent.length / 1024)}KB)` : `AI generating review... (${Math.round(streamContent.length / 1024)}KB)`;
+              })()}
             </div>
           ) : (
             <p className="text-xs text-blue-500 mt-2">
@@ -679,6 +710,7 @@ export function ReviewPanel({
                         hasMultipleTasks={hasMultipleTasks}
                         isZh={isZh}
                         severityStyles={severityStyles}
+                        onAccept={handleAcceptFinding}
                         onResolve={handleResolve}
                       />
                     ));
@@ -815,12 +847,14 @@ function FindingsGroup({
   isZh,
   severityStyles: styles,
   onResolve,
+  onAccept,
 }: {
   group: { title: string; order: number; items: ReviewItem[] };
   hasMultipleTasks: boolean;
   isZh: boolean;
   severityStyles: Record<string, { bg: string; border: string; color: string }>;
   onResolve: (id: string, resolved: boolean) => void;
+  onAccept: (item: ReviewItem) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(!hasMultipleTasks || group.items.some(i => !i.resolved));
   const unresolvedCount = group.items.filter(i => !i.resolved).length;
@@ -870,15 +904,33 @@ function FindingsGroup({
                 </span>
               )}
             </div>
-            <button
-              onClick={() => onResolve(item.id, !item.resolved)}
-              className="text-xs px-2 py-1 rounded shrink-0"
-              style={item.resolved
-                ? { background: "var(--card-border)", color: "var(--muted)" }
-                : { background: "rgba(255,255,255,0.5)", color: "var(--foreground)" }}
-            >
-              {item.resolved ? <><CheckIcon size={12} className="inline-block align-[-1px]" /> {isZh ? "已解决" : "Resolved"}</> : (isZh ? "标记解决" : "Resolve")}
-            </button>
+            {item.resolved ? (
+              <span className="text-xs px-2 py-1 rounded shrink-0" style={{ background: "var(--card-border)", color: "var(--muted)" }}>
+                <CheckIcon size={12} className="inline-block align-[-1px]" /> {isZh ? "已处理" : "Done"}
+              </span>
+            ) : (
+              <div className="flex gap-1 shrink-0">
+                <button
+                  onClick={async (e) => {
+                    const btn = e.currentTarget;
+                    btn.disabled = true;
+                    btn.textContent = "...";
+                    await onAccept(item);
+                  }}
+                  className="text-xs px-2 py-1 rounded hover:opacity-80"
+                  style={{ background: "rgba(34,197,94,0.2)", color: "#86efac" }}
+                >
+                  {isZh ? "采纳" : "Accept"}
+                </button>
+                <button
+                  onClick={() => onResolve(item.id, true)}
+                  className="text-xs px-2 py-1 rounded hover:opacity-80"
+                  style={{ background: "rgba(239,68,68,0.15)", color: "#fca5a5" }}
+                >
+                  {isZh ? "忽略" : "Dismiss"}
+                </button>
+              </div>
+            )}
           </div>
           {item.content && (
             <div className="mt-2 text-sm" style={{ color: "var(--foreground)" }}>
