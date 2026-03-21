@@ -7,10 +7,10 @@ import { eq } from "drizzle-orm";
  * POST /api/schedules/tick
  *
  * Called by the frontend every 30s when auto-execute is enabled.
- * Finds the next pending task and launches it via /api/execute
- * (same path as manual execution — supports ACP, SDK, skills, snapshots).
+ * Returns the next pending task to execute. The frontend then calls
+ * /api/execute directly to get streaming progress display.
  */
-export async function POST(req: Request) {
+export async function POST() {
   const db = getDb();
 
   const autoSchedules = db.select().from(schedules)
@@ -18,10 +18,8 @@ export async function POST(req: Request) {
     .all();
 
   if (autoSchedules.length === 0) {
-    return NextResponse.json({ executed: 0, reason: "no auto-execute schedules" });
+    return NextResponse.json({ executed: false });
   }
-
-  const launched: Array<{ taskId: string; title: string }> = [];
 
   for (const schedule of autoSchedules) {
     const allItems = db.select().from(scheduleItems)
@@ -29,7 +27,7 @@ export async function POST(req: Request) {
       .all()
       .sort((a, b) => a.order - b.order);
 
-    // Check if any task is already running in this schedule
+    // Skip if any task is already running
     const hasRunning = allItems.some(i => i.status === "in_progress");
     if (hasRunning) continue;
 
@@ -37,9 +35,8 @@ export async function POST(req: Request) {
     const nextPending = allItems.find(i => i.status === "pending");
     if (!nextPending) continue;
 
-    // Get plan for status update
+    // Update plan status if needed
     const plan = db.select().from(plans).where(eq(plans.id, schedule.planId)).get();
-
     if (plan?.status === "scheduled") {
       db.update(plans)
         .set({ status: "executing", updatedAt: new Date().toISOString() })
@@ -47,33 +44,11 @@ export async function POST(req: Request) {
         .run();
     }
 
-    // Delegate to /api/execute — fire and forget (don't await the stream)
-    const baseUrl = req.headers.get("origin")
-      || req.headers.get("x-forwarded-proto") + "://" + req.headers.get("host")
-      || "http://127.0.0.1:3002";
-
-    fetch(`${baseUrl}/api/execute`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId: nextPending.id }),
-    }).then(async (res) => {
-      // Consume the stream so the request completes
-      if (res.body) {
-        const reader = res.body.getReader();
-        while (true) {
-          const { done } = await reader.read();
-          if (done) break;
-        }
-      }
-    }).catch(err => {
-      console.error(`[auto-execute] Task ${nextPending.id} failed:`, err);
+    return NextResponse.json({
+      executed: true,
+      nextTask: { itemId: nextPending.id, title: nextPending.title },
     });
-
-    launched.push({ taskId: nextPending.id, title: nextPending.title });
   }
 
-  return NextResponse.json({
-    executed: launched.length,
-    tasks: launched,
-  });
+  return NextResponse.json({ executed: false });
 }

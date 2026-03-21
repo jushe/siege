@@ -114,24 +114,30 @@ export function ScheduleView({
     if (schedule?.autoExecute !== undefined) setAutoExecute(schedule.autoExecute);
   }, [schedule?.autoExecute]);
 
-  // Auto-execute polling
+  // Auto-execute polling: tick finds next task, then we execute with progress
   useEffect(() => {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
     if (!autoExecute || !schedule) return;
+    let running = false;
     const tick = async () => {
+      if (running || executing) return; // don't overlap
       try {
         const res = await fetch("/api/schedules/tick", { method: "POST" });
-        if (res.ok) {
-          const data = await res.json();
-          if (data.executed) {
-            await fetchSchedule();
-            onPlanStatusChange();
-          }
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.executed && data.nextTask) {
+          running = true;
+          // Execute with full progress display (same as manual)
+          await handleExecuteItem(data.nextTask.itemId);
+          running = false;
+          // After completion, immediately check for next task
+          await fetchSchedule();
+          onPlanStatusChange();
         }
-      } catch { /* ignore */ }
+      } catch { running = false; }
     };
     tick();
-    tickRef.current = setInterval(tick, 30000);
+    tickRef.current = setInterval(tick, 10000);
     return () => { if (tickRef.current) clearInterval(tickRef.current); };
   }, [autoExecute, schedule?.id]);
 
