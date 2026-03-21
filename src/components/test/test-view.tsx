@@ -309,13 +309,22 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
                       style={{ background: "var(--card)" }}
                       onClick={() => setExpandedCase(expandedCase === tc.id ? null : tc.id)}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         {tc.status === "passed"
-                          ? <CheckIcon size={16} className="text-green-500" />
+                          ? <CheckIcon size={16} className="text-green-500 shrink-0" />
                           : tc.status === "failed"
-                            ? <XIcon size={16} className="text-red-500" />
-                            : <CircleIcon size={16} className="text-gray-500" />}
-                        <span className="font-mono text-sm" style={{ color: "var(--foreground)" }}>{tc.name}</span>
+                            ? <XIcon size={16} className="text-red-500 shrink-0" />
+                            : <CircleIcon size={16} className="text-gray-500 shrink-0" />}
+                        <div className="min-w-0">
+                          <span className="text-sm truncate block" style={{ color: "var(--foreground)" }}>
+                            {tc.description || tc.name}
+                          </span>
+                          {tc.description && (
+                            <span className="text-[10px] font-mono truncate block" style={{ color: "var(--muted)" }}>
+                              {tc.name}
+                            </span>
+                          )}
+                        </div>
                         <StatusBadge status={tc.type} label={tc.type} />
                       </div>
                       <div className="flex items-center gap-2">
