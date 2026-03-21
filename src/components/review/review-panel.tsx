@@ -93,6 +93,7 @@ export function ReviewPanel({
   const [snapshots, setSnapshots] = useState<FileSnapshot[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"diff" | "list">("diff");
+  const [selectedTask, setSelectedTask] = useState<string | null>(null); // null = all tasks
 
   const fetchReviews = async () => {
     const res = await fetch(`/api/reviews?planId=${planId}&type=${type}`);
@@ -397,31 +398,87 @@ export function ReviewPanel({
 
       {/* Diff viewer — shows whenever there are git changes, regardless of review */}
       {!generating && type === "implementation" && snapshots.length > 0 ? (
+        (() => {
+          // Build unique task list for filter
+          const taskList: Array<{ id: string; title: string; order: number; fileCount: number }> = [];
+          const seen = new Set<string>();
+          for (const snap of snapshots) {
+            const key = snap.scheduleItemId || "";
+            if (key && !seen.has(key)) {
+              seen.add(key);
+              taskList.push({
+                id: key,
+                title: snap.taskTitle || key,
+                order: snap.taskOrder ?? 999,
+                fileCount: snapshots.filter(s => s.scheduleItemId === key).length,
+              });
+            }
+          }
+          taskList.sort((a, b) => a.order - b.order);
+
+          // Filter snapshots by selected task
+          const filteredSnapshots = selectedTask
+            ? snapshots.filter(s => s.scheduleItemId === selectedTask)
+            : snapshots;
+
+          return (
         <div className="space-y-3">
-          {/* View mode toggle */}
-          {latestReview && (
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant={viewMode === "diff" ? "primary" : "secondary"}
-                onClick={() => setViewMode("diff")}
-              >
-                <BarChartIcon size={14} className="inline-block align-[-2px]" /> {t("review.viewDiff")}
-              </Button>
-              <Button
-                size="sm"
-                variant={viewMode === "list" ? "primary" : "secondary"}
-                onClick={() => setViewMode("list")}
-              >
-                <ClipboardIcon size={14} className="inline-block align-[-2px]" /> {t("review.viewFindings")}
-              </Button>
-            </div>
-          )}
+          {/* View mode toggle + task filter */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {latestReview && (
+              <>
+                <Button
+                  size="sm"
+                  variant={viewMode === "diff" ? "primary" : "secondary"}
+                  onClick={() => setViewMode("diff")}
+                >
+                  <BarChartIcon size={14} className="inline-block align-[-2px]" /> {t("review.viewDiff")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "list" ? "primary" : "secondary"}
+                  onClick={() => setViewMode("list")}
+                >
+                  <ClipboardIcon size={14} className="inline-block align-[-2px]" /> {t("review.viewFindings")}
+                </Button>
+              </>
+            )}
+            {taskList.length > 1 && (viewMode === "diff" || !latestReview) && (
+              <>
+                <span className="w-px h-5 mx-1" style={{ background: "var(--card-border)" }} />
+                <button
+                  onClick={() => { setSelectedTask(null); setSelectedFile(null); }}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${!selectedTask ? "ring-1" : ""}`}
+                  style={{
+                    background: !selectedTask ? "var(--foreground)" : "var(--card-border)",
+                    color: !selectedTask ? "var(--background)" : "var(--muted)",
+                    ...(selectedTask ? {} : { ringColor: "var(--foreground)" }),
+                  }}
+                >
+                  {isZh ? "全部" : "All"} ({snapshots.length})
+                </button>
+                {taskList.map((task) => (
+                  <button
+                    key={task.id}
+                    onClick={() => { setSelectedTask(task.id); setSelectedFile(null); }}
+                    className={`px-2 py-1 rounded text-xs font-medium transition-colors ${selectedTask === task.id ? "ring-1" : ""}`}
+                    style={{
+                      background: selectedTask === task.id ? "var(--foreground)" : "var(--card-border)",
+                      color: selectedTask === task.id ? "var(--background)" : "var(--muted)",
+                      ...(selectedTask === task.id ? { ringColor: "var(--foreground)" } : {}),
+                    }}
+                  >
+                    #{task.order} {task.title} ({task.fileCount})
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
 
           {viewMode === "diff" || !latestReview ? (
             <div className="flex border rounded-lg overflow-hidden" style={{ height: "600px", borderColor: "var(--card-border)" }}>
               <FileSidebar
-                files={snapshots.map((snap) => {
+                files={filteredSnapshots.map((snap) => {
                   const stats = computeDiffStats(snap.contentBefore, snap.contentAfter);
                   const findingCount = latestReview
                     ? latestReview.items.filter((item) => item.filePath === snap.filePath).length
@@ -440,7 +497,7 @@ export function ReviewPanel({
               />
               {selectedFile ? (
                 (() => {
-                  const snap = snapshots.find((s) => s.filePath === selectedFile);
+                  const snap = filteredSnapshots.find((s) => s.filePath === selectedFile);
                   if (!snap) return null;
                   return (
                     <DiffViewer
@@ -546,6 +603,8 @@ export function ReviewPanel({
             </div>
           )}
         </div>
+          );
+        })()
       ) : !generating && type === "scheme" && latestReview ? (
         /* Scheme review: flat list */
         <div className="space-y-2">
