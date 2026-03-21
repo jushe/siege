@@ -724,14 +724,15 @@ export function ReviewPanel({
                     )}
                   </div>
                   {(() => {
-                    // Group findings by task
-                    const taskGroups = new Map<string, { title: string; order: number; items: ReviewItem[] }>();
+                    // Group findings by task, mark fix sub-tasks
+                    const taskGroups = new Map<string, { title: string; order: number; isFix: boolean; items: ReviewItem[] }>();
                     for (const item of latestReview.items) {
                       const key = item.taskTitle || "";
                       if (!taskGroups.has(key)) {
                         taskGroups.set(key, {
                           title: item.taskTitle || (isZh ? "未关联任务" : "Unlinked"),
                           order: item.taskOrder ?? 999,
+                          isFix: (item.taskTitle || "").startsWith("[fix]"),
                           items: [],
                         });
                       }
@@ -745,6 +746,7 @@ export function ReviewPanel({
                         key={group.title}
                         group={group}
                         hasMultipleTasks={hasMultipleTasks}
+                        isFix={group.isFix}
                         isZh={isZh}
                         severityStyles={severityStyles}
                         onAccept={handleAcceptFinding}
@@ -947,6 +949,7 @@ export function ReviewPanel({
 function FindingsGroup({
   group,
   hasMultipleTasks,
+  isFix,
   isZh,
   severityStyles: styles,
   onResolve,
@@ -954,6 +957,7 @@ function FindingsGroup({
 }: {
   group: { title: string; order: number; items: ReviewItem[] };
   hasMultipleTasks: boolean;
+  isFix: boolean;
   isZh: boolean;
   severityStyles: Record<string, { bg: string; border: string; color: string }>;
   onResolve: (id: string, resolved: boolean) => void;
@@ -968,8 +972,8 @@ function FindingsGroup({
       {hasMultipleTasks && (
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center gap-2 text-left text-xs font-medium mt-3 mb-1 px-1 py-1 rounded hover:opacity-80"
-          style={{ color: "var(--muted)" }}
+          className="w-full flex items-center gap-2 text-left text-xs font-medium mt-3 mb-1 py-1 rounded hover:opacity-80"
+          style={{ color: isFix ? "#c4b5fd" : "var(--muted)", paddingLeft: isFix ? "1.5rem" : "0.25rem" }}
         >
           <svg
             className={`w-3 h-3 shrink-0 transition-transform ${expanded ? "rotate-90" : ""}`}
@@ -977,7 +981,11 @@ function FindingsGroup({
           >
             <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
           </svg>
-          <span>#{group.order} {group.title}</span>
+          {isFix && <span>↳</span>}
+          <span>#{group.order} {isFix ? group.title.replace("[fix] ", "") : group.title}</span>
+          {isFix && (
+            <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: "rgba(124,58,237,0.2)", color: "#c4b5fd" }}>fix</span>
+          )}
           <span className="font-normal">({group.items.length})</span>
           {unresolvedCount > 0 && (
             <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: "#7f1d1d", color: "#fca5a5" }}>
