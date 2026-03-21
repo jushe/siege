@@ -153,17 +153,17 @@ export async function POST(req: NextRequest) {
       if (snaps.length === 0) continue;
       hasSnapshotDiffs = true;
       const diffParts = snaps.map((s) => {
-        const before = (s.contentBefore || "").split("\n");
-        const after = (s.contentAfter || "").split("\n");
+        const beforeLines = (s.contentBefore || "").split("\n").length;
+        const afterLines = (s.contentAfter || "").split("\n").length;
         if (!s.contentBefore) {
-          return `--- /dev/null\n+++ b/${s.filePath}\n${after.map(l => `+${l}`).join("\n")}`;
+          return `+++ b/${s.filePath} (new file, ${afterLines} lines)`;
         }
-        return `--- a/${s.filePath}\n+++ b/${s.filePath}\n(file changed, ${before.length} → ${after.length} lines)`;
-      }).join("\n\n");
+        return `--- a/${s.filePath}\n+++ b/${s.filePath}\n(${beforeLines} → ${afterLines} lines)`;
+      }).join("\n");
       itemsToReview.push({
         id: item.id,
         title: `#${item.order} ${item.title}`,
-        content: `Task: ${item.description || item.title}\n\nFiles changed: ${snaps.map(s => s.filePath).join(", ")}\n\n\`\`\`diff\n${diffParts.slice(0, 15000)}\n\`\`\``,
+        content: `Task: ${item.description || item.title}\n\nFiles changed:\n${diffParts}`,
       });
     }
 
