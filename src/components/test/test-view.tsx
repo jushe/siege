@@ -137,15 +137,24 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
 
   const handleRunCase = async (caseId: string) => {
     setRunningCase(caseId);
+    const tc = suite?.cases.find(c => c.id === caseId);
+    startLoading(isZh ? `运行测试: ${tc?.description || tc?.name || ""}` : `Running: ${tc?.description || tc?.name || ""}`);
     try {
       await fetch(`/api/test-cases/${caseId}/run`, { method: "POST" });
       const freshRes = await fetch(`/api/test-suites?planId=${planId}`);
       const freshSuite = await freshRes.json() as TestSuite | null;
       setSuite(freshSuite);
       const freshCase = freshSuite?.cases.find(c => c.id === caseId);
-      if (freshCase?.status === "failed") {
+      if (freshCase?.status === "passed") {
+        stopLoading(isZh ? "测试通过" : "Test passed");
+      } else if (freshCase?.status === "failed") {
+        stopLoading(isZh ? "测试未通过" : "Test failed");
         setFailedPrompt({ cases: [freshCase] });
+      } else {
+        stopLoading();
       }
+    } catch {
+      stopLoading(isZh ? "运行失败" : "Run failed");
     } finally {
       setRunningCase(null);
     }
