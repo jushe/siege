@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   if (!suite) {
     const suiteId = crypto.randomUUID();
     db.insert(testSuites).values({ id: suiteId, planId, status: "pending" }).run();
-    suite = db.select().from(testSuites).where(eq(testSuites.id, suiteId)).get()!;
+    suite = { id: suiteId, planId, status: "pending" as const, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   }
 
   const caseId = crypto.randomUUID();

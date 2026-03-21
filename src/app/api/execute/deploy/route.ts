@@ -6,6 +6,7 @@ import { resolveStepConfig, getStepModel } from "@/lib/ai/config";
 import { AcpClient } from "@/lib/acp/client";
 import { parseJsonBody } from "@/lib/utils";
 import fs from "fs";
+import path from "path";
 
 /**
  * POST /api/execute/deploy
@@ -97,16 +98,19 @@ Use the available tools to run commands, read/write files as needed. Report prog
       description: "Read a file",
       inputSchema: z.object({ path: z.string() }),
       execute: async ({ path: p }) => {
-        try { return fs.readFileSync(require("path").resolve(repoPath, p), "utf-8").slice(0, 10000); } catch (e) { return `Error: ${e}`; }
+        const abs = path.resolve(repoPath, p);
+        if (!abs.startsWith(repoPath)) return "Access denied: path outside project";
+        try { return fs.readFileSync(abs, "utf-8").slice(0, 10000); } catch (e) { return `Error: ${e}`; }
       },
     }),
     writeFile: tool({
       description: "Write a file",
       inputSchema: z.object({ path: z.string(), content: z.string() }),
       execute: async ({ path: p, content }) => {
+        const abs = path.resolve(repoPath, p);
+        if (!abs.startsWith(repoPath)) return "Access denied: path outside project";
         try {
-          const abs = require("path").resolve(repoPath, p);
-          fs.mkdirSync(require("path").dirname(abs), { recursive: true });
+          fs.mkdirSync(path.dirname(abs), { recursive: true });
           fs.writeFileSync(abs, content); return "OK";
         } catch (e) { return `Error: ${e}`; }
       },

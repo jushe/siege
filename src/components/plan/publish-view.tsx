@@ -54,7 +54,7 @@ export function PublishView({ planId, projectId }: PublishViewProps) {
   const { startLoading, updateContent, stopLoading } = useGlobalLoading();
   const defaultProvider = useDefaultProvider();
 
-  useState(() => { if (defaultProvider) setDeployProvider(defaultProvider); });
+  useEffect(() => { if (defaultProvider && !deployProvider) setDeployProvider(defaultProvider); }, [defaultProvider]);
 
   const handleDeploy = async () => {
     if (!deployCmd.trim() || deploying) return;
@@ -103,14 +103,13 @@ export function PublishView({ planId, projectId }: PublishViewProps) {
     }
     setRepoPath(proj.targetRepoPath);
 
-    const gitRes = await fetch(`/api/git?path=${encodeURIComponent(proj.targetRepoPath)}`);
+    const [gitRes, prRes] = await Promise.all([
+      fetch(`/api/git?path=${encodeURIComponent(proj.targetRepoPath)}`),
+      fetch(`/api/git/pr?repoPath=${encodeURIComponent(proj.targetRepoPath)}`),
+    ]);
     const git = await gitRes.json();
     setGitStatus(git);
-
-    if (git.isGit) {
-      const prRes = await fetch(`/api/git/pr?repoPath=${encodeURIComponent(proj.targetRepoPath)}`);
-      setPrInfo(await prRes.json());
-    }
+    setPrInfo(await prRes.json());
   };
 
   useEffect(() => { fetchStatus(); }, [projectId]);

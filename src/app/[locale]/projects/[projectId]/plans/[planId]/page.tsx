@@ -190,14 +190,16 @@ export default function PlanDetailPage({
               <Button
                 onClick={async () => {
                   setCompleting(true);
-                  await fetch(`/api/plans/${planId}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: "completed" }),
-                  });
-                  await fetchPlan();
+                  try {
+                    await fetch(`/api/plans/${planId}`, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ status: "completed" }),
+                    });
+                    await fetchPlan();
+                    setCompleted(true);
+                  } catch { /* ignore */ }
                   setCompleting(false);
-                  setCompleted(true);
                 }}
                 disabled={completing}
               >
