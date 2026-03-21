@@ -42,6 +42,8 @@ interface ReviewItem {
   resolved: boolean;
   filePath: string | null;
   lineNumber: number | null;
+  taskTitle: string | null;
+  taskOrder: number | null;
 }
 
 interface Review {
@@ -459,47 +461,80 @@ export function ReviewPanel({
               )}
             </div>
           ) : (
-            /* Findings list view */
+            /* Findings list view — grouped by task */
             <div className="space-y-2">
               {latestReview.items.length > 0 ? (
                 <>
                   <h5 className="text-sm font-medium">
                     {t("review.findings")} ({latestReview.items.length})
                   </h5>
-                  {latestReview.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className={`rounded-lg border p-3 ${
-                        item.resolved
-                          ? "opacity-60"
-                          : severityColors[item.severity] || severityColors.info
-                      }`}
-                      style={item.resolved ? { background: "var(--background)", borderColor: "var(--card-border)" } : undefined}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-2">
-                          <StatusBadge status={item.severity} label={item.severity} />
-                          <span className="font-medium text-sm"><SeverityIcon severity={item.severity} /> {item.title}</span>
-                        </div>
-                        <div className="flex gap-1">
-                          <button
-                            onClick={() => handleResolve(item.id, !item.resolved)}
-                            className="text-xs px-2 py-1 rounded"
-                            style={item.resolved
-                              ? { background: "var(--card-border)", color: "var(--muted)" }
-                              : { background: "rgba(255,255,255,0.5)", color: "var(--foreground)" }}
+                  {(() => {
+                    // Group findings by task
+                    const taskGroups = new Map<string, { title: string; order: number; items: ReviewItem[] }>();
+                    for (const item of latestReview.items) {
+                      const key = item.taskTitle || "";
+                      if (!taskGroups.has(key)) {
+                        taskGroups.set(key, {
+                          title: item.taskTitle || (isZh ? "未关联任务" : "Unlinked"),
+                          order: item.taskOrder ?? 999,
+                          items: [],
+                        });
+                      }
+                      taskGroups.get(key)!.items.push(item);
+                    }
+                    const sorted = [...taskGroups.values()].sort((a, b) => a.order - b.order);
+                    const hasMultipleTasks = sorted.length > 1 || (sorted.length === 1 && sorted[0].order !== 999);
+
+                    return sorted.map((group) => (
+                      <div key={group.title}>
+                        {hasMultipleTasks && (
+                          <div className="text-[11px] font-medium mt-3 mb-1 px-1" style={{ color: "var(--muted)" }}>
+                            #{group.order} {group.title}
+                            <span className="ml-1 font-normal">({group.items.length})</span>
+                          </div>
+                        )}
+                        {group.items.map((item) => (
+                          <div
+                            key={item.id}
+                            className={`rounded-lg border p-3 mb-2 ${
+                              item.resolved
+                                ? "opacity-60"
+                                : severityColors[item.severity] || severityColors.info
+                            }`}
+                            style={item.resolved ? { background: "var(--background)", borderColor: "var(--card-border)" } : undefined}
                           >
-                            {item.resolved ? <><CheckIcon size={12} className="inline-block align-[-1px]" /> {t("review.resolved")}</> : t("review.resolve")}
-                          </button>
-                        </div>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <StatusBadge status={item.severity} label={item.severity} />
+                                <span className="font-medium text-sm"><SeverityIcon severity={item.severity} /> {item.title}</span>
+                                {item.filePath && (
+                                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--muted)" }}>
+                                    {item.filePath.split("/").pop()}{item.lineNumber ? `:${item.lineNumber}` : ""}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleResolve(item.id, !item.resolved)}
+                                  className="text-xs px-2 py-1 rounded"
+                                  style={item.resolved
+                                    ? { background: "var(--card-border)", color: "var(--muted)" }
+                                    : { background: "rgba(255,255,255,0.5)", color: "var(--foreground)" }}
+                                >
+                                  {item.resolved ? <><CheckIcon size={12} className="inline-block align-[-1px]" /> {t("review.resolved")}</> : t("review.resolve")}
+                                </button>
+                              </div>
+                            </div>
+                            {item.content && (
+                              <div className="mt-2 text-sm">
+                                <MarkdownRenderer content={item.content} />
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      {item.content && (
-                        <div className="mt-2 text-sm">
-                          <MarkdownRenderer content={item.content} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </>
               ) : (
                 <p className="text-sm text-center py-4" style={{ color: "var(--muted)" }}>

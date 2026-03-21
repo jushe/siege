@@ -9,6 +9,7 @@ import {
   reviewItems,
   projects,
   appSettings,
+  fileSnapshots,
 } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { getStepModel } from "@/lib/ai/config";
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Plan not found" }, { status: 404 });
   }
 
-  let itemsToReview: Array<{ id: string; title: string; content: string }>;
+  let itemsToReview: Array<{ id: string; title: string; content: string }> = [];
 
   if (type === "scheme") {
     itemsToReview = db
@@ -128,33 +129,56 @@ export async function POST(req: NextRequest) {
     const project = db.select().from(projects).where(eq(projects.id, plan.projectId)).get();
     const repoPath = project?.targetRepoPath;
 
-    // Get git diff from the target repo
-    let gitDiff = "";
-    if (repoPath && fs.existsSync(repoPath)) {
-      gitDiff = getGitUnifiedDiff(repoPath);
-    }
-
     const allScheduleItems = db
       .select()
       .from(scheduleItems)
       .where(eq(scheduleItems.scheduleId, schedule.id))
-      .all();
+      .all()
+      .sort((a, b) => a.order - b.order);
 
-    if (gitDiff) {
-      // Use git diff as the review content — associate with first schedule item as targetId
-      const firstItemId = allScheduleItems[0]?.id || "";
-      itemsToReview = [{
-        id: firstItemId,
-        title: "Code Changes (git diff)",
-        content: `### Git Diff\n\`\`\`diff\n${gitDiff}\n\`\`\``,
-      }];
-    } else {
-      // Fallback: use execution logs
-      itemsToReview = allScheduleItems.map((i) => ({
-        id: i.id,
-        title: i.title,
-        content: `${i.description || ""}\n\n### Execution Log\n\`\`\`\n${i.executionLog || "No output"}\n\`\`\``,
-      }));
+    // Build per-task diffs from file snapshots
+    let hasSnapshotDiffs = false;
+    for (const item of allScheduleItems) {
+      const snaps = db.select().from(fileSnapshots)
+        .where(eq(fileSnapshots.scheduleItemId, item.id))
+        .all();
+      if (snaps.length === 0) continue;
+      hasSnapshotDiffs = true;
+      const diffParts = snaps.map((s) => {
+        const before = (s.contentBefore || "").split("\n");
+        const after = (s.contentAfter || "").split("\n");
+        if (!s.contentBefore) {
+          return `--- /dev/null\n+++ b/${s.filePath}\n${after.map(l => `+${l}`).join("\n")}`;
+        }
+        return `--- a/${s.filePath}\n+++ b/${s.filePath}\n(file changed, ${before.length} → ${after.length} lines)`;
+      }).join("\n\n");
+      itemsToReview.push({
+        id: item.id,
+        title: `#${item.order} ${item.title}`,
+        content: `Task: ${item.description || item.title}\n\nFiles changed: ${snaps.map(s => s.filePath).join(", ")}\n\n\`\`\`diff\n${diffParts.slice(0, 15000)}\n\`\`\``,
+      });
+    }
+
+    if (!hasSnapshotDiffs) {
+      // Fallback: use overall git diff or execution logs
+      let gitDiff = "";
+      if (repoPath && fs.existsSync(repoPath)) {
+        gitDiff = getGitUnifiedDiff(repoPath);
+      }
+      if (gitDiff) {
+        const firstItemId = allScheduleItems[0]?.id || "";
+        itemsToReview = [{
+          id: firstItemId,
+          title: "Code Changes (git diff)",
+          content: `### Git Diff\n\`\`\`diff\n${gitDiff}\n\`\`\``,
+        }];
+      } else {
+        itemsToReview = allScheduleItems.map((i) => ({
+          id: i.id,
+          title: i.title,
+          content: `${i.description || ""}\n\n### Execution Log\n\`\`\`\n${i.executionLog || "No output"}\n\`\`\``,
+        }));
+      }
     }
   }
 
@@ -223,13 +247,34 @@ export async function POST(req: NextRequest) {
             .where(eq(reviews.id, reviewId))
             .run();
 
+          // Build filePath → scheduleItemId map from snapshots for linking
+          const fileToItemId = new Map<string, string>();
+          if (type === "implementation") {
+            const schedule = db.select().from(schedules).where(eq(schedules.planId, planId)).get();
+            if (schedule) {
+              const items = db.select().from(scheduleItems).where(eq(scheduleItems.scheduleId, schedule.id)).all();
+              for (const si of items) {
+                const snaps = db.select().from(fileSnapshots).where(eq(fileSnapshots.scheduleItemId, si.id)).all();
+                for (const snap of snaps) {
+                  fileToItemId.set(snap.filePath, si.id);
+                }
+              }
+            }
+          }
+
           for (const item of parsed.items || []) {
+            // Resolve targetId: prefer AI-returned, then match by filePath from snapshots
+            let resolvedTargetId = item.targetId || "";
+            if (type === "implementation" && item.filePath && fileToItemId.has(item.filePath)) {
+              resolvedTargetId = fileToItemId.get(item.filePath)!;
+            }
+
             db.insert(reviewItems)
               .values({
                 id: crypto.randomUUID(),
                 reviewId,
                 targetType: type === "scheme" ? "scheme" : "schedule_item",
-                targetId: item.targetId || "",
+                targetId: resolvedTargetId,
                 title: item.title || "Finding",
                 content: item.content || "",
                 severity: item.severity || "info",
