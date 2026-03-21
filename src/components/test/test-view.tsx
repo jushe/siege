@@ -385,7 +385,12 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
             >
               <SparklesIcon size={14} className="inline-block align-[-2px]" /> {generating
                 ? (isZh ? "生成中..." : "Generating...")
-                : (isZh ? `生成测试 (${selectedTasks.size})` : `Generate Tests (${selectedTasks.size})`)}
+                : (() => {
+                    const hasExisting = [...selectedTasks].some(id => suite?.cases.some(c => c.scheduleItemId === id));
+                    return hasExisting
+                      ? (isZh ? `重新生成 (${selectedTasks.size})` : `Regenerate (${selectedTasks.size})`)
+                      : (isZh ? `生成测试 (${selectedTasks.size})` : `Generate (${selectedTasks.size})`);
+                  })()}
             </Button>
           </div>
         </div>
