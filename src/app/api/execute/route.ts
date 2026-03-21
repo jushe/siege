@@ -439,11 +439,7 @@ You also have LSP tools (lspHover, lspDefinition, lspReferences, lspDiagnostics)
             } else if (type === "tool") {
               fullLog += text;
               controller.enqueue(encoder.encode(text));
-            } else if (type === "tool_result") {
-              fullLog += text;
-              controller.enqueue(encoder.encode(text));
             } else if (type === "thought") {
-              // Don't show thoughts in streaming output, but log them
               fullLog += `[thought] ${text}`;
             } else if (type === "plan") {
               const msg = `\nPlan:\n${text}\n\n`;

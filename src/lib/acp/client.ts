@@ -222,25 +222,18 @@ export class AcpClient {
       this.onUpdate("text", u.content.text);
     } else if (u.sessionUpdate === "agent_thought_chunk" && u.content?.text) {
       this.onUpdate("thought", u.content.text);
-    } else if (u.sessionUpdate === "tool_call_update") {
+    } else if (u.sessionUpdate === "tool_call" || u.sessionUpdate === "tool_call_update") {
       const raw = u as Record<string, unknown>;
-      console.log("[acp] tool_call_update keys:", JSON.stringify(Object.keys(raw)), "content:", JSON.stringify(raw.content)?.slice(0, 300));
-      const toolContent = raw.content as Record<string, unknown> | undefined;
-      const name = toolContent?.name || toolContent?.toolName
-        || raw.toolName || raw.name || "unknown";
-      const input = toolContent?.input || raw.input || "";
-      const inputStr = typeof input === "string"
-        ? input.slice(0, 200)
-        : (input && typeof input === "object" ? JSON.stringify(input).slice(0, 200) : "");
-      this.onUpdate("tool", `> **Tool: ${name}**${inputStr ? `(${inputStr})` : ""}\n`);
-    } else if (u.sessionUpdate === "tool_result") {
-      const raw = u as Record<string, unknown>;
-      const toolContent = raw.content as Record<string, unknown> | undefined;
-      const output = toolContent?.text || toolContent?.output || raw.output || "";
-      const outputStr = typeof output === "string" ? output : JSON.stringify(output);
-      if (outputStr) {
-        const truncated = outputStr.length > 500 ? outputStr.slice(0, 500) + "..." : outputStr;
-        this.onUpdate("tool_result", `\`\`\`\n${truncated}\n\`\`\`\n`);
+      const meta = raw._meta as Record<string, unknown> | undefined;
+      const claudeCode = meta?.claudeCode as Record<string, unknown> | undefined;
+      const toolName = claudeCode?.toolName || raw.title || "unknown";
+      const title = (raw.title as string) || "";
+      const rawInput = raw.rawInput as Record<string, unknown> | undefined;
+
+      // tool_call = start (no input yet), tool_call_update = has rawInput
+      if (u.sessionUpdate === "tool_call_update" && rawInput && Object.keys(rawInput).length > 0) {
+        const inputStr = JSON.stringify(rawInput).slice(0, 200);
+        this.onUpdate("tool", `> **${toolName}**: ${title || inputStr}\n`);
       }
     } else if (u.sessionUpdate === "plan_update" && u.plan) {
       const planText = u.plan.entries.map(e => `- [${e.status}] ${e.content}`).join("\n");
