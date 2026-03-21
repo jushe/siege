@@ -241,18 +241,35 @@ export function ReviewPanel({
       body: JSON.stringify({ resolved }),
     });
     const fresh = await fetchReviews();
-    if (resolved) checkAllResolved(fresh);
+    if (resolved) checkAllResolved(fresh, itemId);
   };
 
   const [fixingItem, setFixingItem] = useState<string | null>(null);
   const [fixingAll, setFixingAll] = useState(false);
   const [fixPromptItem, setFixPromptItem] = useState<ReviewItem | null>(null);
   const [allResolvedPrompt, setAllResolvedPrompt] = useState(false);
+  const [resolvedTaskInfo, setResolvedTaskInfo] = useState<{ id: string; title: string } | null>(null);
 
-  /** Check if all findings resolved after any resolve action */
-  const checkAllResolved = (freshReviews?: Review[]) => {
+  /** Check if all findings for the resolved item's task are done */
+  const checkAllResolved = (freshReviews?: Review[], resolvedItemId?: string) => {
     const rev = freshReviews ? freshReviews[freshReviews.length - 1] : latestReview;
-    if (rev && rev.items.length > 0 && rev.items.every((i: ReviewItem) => i.resolved)) {
+    if (!rev) return;
+    // Find which task this item belongs to
+    const resolvedItem = rev.items.find(i => i.id === resolvedItemId);
+    const taskId = resolvedItem?.targetId;
+    const taskTitle = resolvedItem?.taskTitle;
+    if (!taskId) {
+      // No task association — check all items
+      if (rev.items.length > 0 && rev.items.every((i: ReviewItem) => i.resolved)) {
+        setResolvedTaskInfo(null);
+        setAllResolvedPrompt(true);
+      }
+      return;
+    }
+    // Check only findings for this task
+    const taskItems = rev.items.filter(i => i.targetId === taskId);
+    if (taskItems.length > 0 && taskItems.every(i => i.resolved)) {
+      setResolvedTaskInfo({ id: taskId, title: taskTitle || "" });
       setAllResolvedPrompt(true);
     }
   };
@@ -382,7 +399,7 @@ export function ReviewPanel({
     });
     const fresh = await fetchReviews();
     onPlanStatusChange();
-    checkAllResolved(fresh);
+    checkAllResolved(fresh, item.id);
   };
 
   const canReview =
@@ -857,19 +874,26 @@ export function ReviewPanel({
         </p>
       ) : null}
 
-      {/* All findings resolved prompt */}
+      {/* Task findings all resolved prompt */}
       <Dialog
         open={allResolvedPrompt}
         onClose={() => setAllResolvedPrompt(false)}
-        title={isZh ? "所有审查意见已处理" : "All Findings Resolved"}
+        title={resolvedTaskInfo
+          ? (isZh ? `任务审查完成` : `Task Review Complete`)
+          : (isZh ? "所有审查意见已处理" : "All Findings Resolved")}
       >
         <div className="space-y-4">
           <div className="text-center py-2">
             <CheckCircleIcon size={40} className="mx-auto text-green-500" />
+            {resolvedTaskInfo && (
+              <p className="text-xs mt-2 font-mono" style={{ color: "var(--muted)" }}>
+                {resolvedTaskInfo.title}
+              </p>
+            )}
             <p className="text-sm mt-3" style={{ color: "var(--foreground)" }}>
-              {isZh
-                ? "所有审查意见都已处理完毕，接下来你可以："
-                : "All review findings have been resolved. What would you like to do next?"}
+              {resolvedTaskInfo
+                ? (isZh ? "该任务的所有审查意见已处理完毕，接下来：" : "All findings for this task are resolved. Next:")
+                : (isZh ? "所有审查意见已处理完毕，接下来：" : "All findings resolved. Next:")}
             </p>
           </div>
           <div className="space-y-2">
@@ -877,28 +901,33 @@ export function ReviewPanel({
               className="w-full"
               onClick={async () => {
                 setAllResolvedPrompt(false);
-                // Navigate to test tab by triggering plan status change
-                if (type === "implementation") {
-                  await fetch(`/api/plans/${planId}/review-action`, {
+                // Generate tests for this specific task
+                if (resolvedTaskInfo) {
+                  await fetch("/api/test-suites/generate", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ action: "accept" }),
+                    body: JSON.stringify({
+                      planId,
+                      scheduleItemIds: [resolvedTaskInfo.id],
+                    }),
                   });
-                  onPlanStatusChange();
                 }
+                onPlanStatusChange();
               }}
             >
-              <FlaskIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "进入测试阶段" : "Proceed to Testing"}
+              <FlaskIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "为该任务生成测试" : "Generate Tests for This Task"}
             </Button>
             <Button
               variant="secondary"
               className="w-full"
               onClick={async () => {
                 setAllResolvedPrompt(false);
+                // Re-review this specific task
+                setReviewTaskId(resolvedTaskInfo?.id || "");
                 handleGenerate();
               }}
             >
-              <RefreshIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新审查" : "Re-review"}
+              <RefreshIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新审查该任务" : "Re-review This Task"}
             </Button>
             <Button
               variant="ghost"
