@@ -864,6 +864,7 @@ function FindingsGroup({
   onAccept: (item: ReviewItem, chosenOption?: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(!hasMultipleTasks || group.items.some(i => !i.resolved));
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
   const unresolvedCount = group.items.filter(i => !i.resolved).length;
 
   return (
@@ -912,8 +913,13 @@ function FindingsGroup({
               )}
             </div>
             {item.resolved ? (
-              <span className="text-xs px-2 py-1 rounded shrink-0" style={{ background: "var(--card-border)", color: "var(--muted)" }}>
-                <CheckIcon size={12} className="inline-block align-[-1px]" /> {isZh ? "已处理" : "Done"}
+              <span className="text-xs px-2 py-1 rounded shrink-0" style={{
+                background: acceptedIds.has(item.id) ? "rgba(124,58,237,0.15)" : "var(--card-border)",
+                color: acceptedIds.has(item.id) ? "#c4b5fd" : "var(--muted)",
+              }}>
+                <CheckIcon size={12} className="inline-block align-[-1px]" /> {acceptedIds.has(item.id)
+                  ? (isZh ? "已加入排期" : "Added to Schedule")
+                  : (isZh ? "已忽略" : "Dismissed")}
               </span>
             ) : (
               <button
@@ -945,6 +951,7 @@ function FindingsGroup({
                       btn.disabled = true;
                       btn.textContent = "...";
                       await onAccept(item, opt);
+                      setAcceptedIds(prev => new Set(prev).add(item.id));
                     }}
                     className="text-[11px] px-2 py-1 rounded border hover:opacity-80"
                     style={{ borderColor: "rgba(34,197,94,0.3)", color: "#86efac", background: "rgba(34,197,94,0.1)" }}
@@ -961,6 +968,7 @@ function FindingsGroup({
                     btn.disabled = true;
                     btn.textContent = "...";
                     await onAccept(item);
+                    setAcceptedIds(prev => new Set(prev).add(item.id));
                   }}
                   className="text-[11px] px-2 py-1 rounded hover:opacity-80"
                   style={{ background: "rgba(34,197,94,0.2)", color: "#86efac" }}

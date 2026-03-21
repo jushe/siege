@@ -524,51 +524,6 @@ export function ScheduleView({
             }}
           />
 
-          {/* Task tree list */}
-          <div className="mt-4 rounded-lg border divide-y" style={{ borderColor: "var(--card-border)", background: "var(--card)" }}>
-            {schedule.items.sort((a, b) => a.order - b.order).map((item) => {
-              const isFix = item.title.startsWith("[fix]");
-              const isSelected = selectedItem?.id === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setSelectedItem(isSelected ? null : item)}
-                  className="w-full flex items-center gap-2 px-4 py-2 text-left text-sm hover:opacity-80 transition-colors"
-                  style={{
-                    background: isSelected ? "var(--background)" : undefined,
-                    paddingLeft: isFix ? "2.5rem" : "1rem",
-                  }}
-                >
-                  {/* Status dot */}
-                  <span className={`w-2 h-2 rounded-full shrink-0 ${
-                    item.status === "completed" ? "bg-green-500" :
-                    item.status === "failed" ? "bg-red-500" :
-                    item.status === "in_progress" ? "bg-blue-500 animate-pulse" : ""
-                  }`} style={item.status === "pending" ? { background: "var(--card-border)" } : undefined} />
-
-                  {/* Order + title */}
-                  {isFix ? (
-                    <>
-                      <span className="text-[10px]" style={{ color: "#c4b5fd" }}>↳</span>
-                      <span style={{ color: "#c4b5fd" }}>{item.title.replace("[fix] ", "")}</span>
-                      <span className="text-[9px] px-1 py-0.5 rounded" style={{ background: "rgba(124,58,237,0.2)", color: "#c4b5fd" }}>fix</span>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ color: "var(--muted)" }}>#{item.order}</span>
-                      <span style={{ color: "var(--foreground)" }}>{item.title}</span>
-                    </>
-                  )}
-
-                  {/* Progress */}
-                  <span className="ml-auto text-xs" style={{ color: "var(--muted)" }}>
-                    {item.status === "completed" ? "✓" : item.status === "failed" ? "✗" : `${item.progress}%`}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* Selected task detail panel */}
           {selectedItem && (() => {
             const item = selectedItem;
