@@ -439,23 +439,23 @@ export function ReviewPanel({
 
       {/* Progress indicator */}
       {generating && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+        <div className="rounded-lg border p-4" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <svg className="animate-spin h-4 w-4 text-blue-600" viewBox="0 0 24 24">
+              <svg className="animate-spin h-4 w-4" style={{ color: "var(--foreground)" }} viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              <span className="text-sm font-medium text-blue-700">
+              <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>
                 {isZh ? "AI 正在审查中..." : "AI reviewing..."}
               </span>
             </div>
-            <span className="text-xs font-mono text-blue-500">
+            <span className="text-xs font-mono" style={{ color: "var(--muted)" }}>
               {elapsed}s
             </span>
           </div>
           {streamContent ? (
-            <div className="mt-3 max-h-40 overflow-y-auto text-xs rounded p-2 whitespace-pre-wrap" style={{ background: "rgba(59,130,246,0.1)", color: "#93c5fd" }}>
+            <div className="mt-3 max-h-40 overflow-y-auto text-xs rounded p-2 whitespace-pre-wrap" style={{ background: "var(--background)", color: "var(--foreground)" }}>
               {(() => {
                 // Extract "summary" value from partial JSON, or show non-JSON text
                 const summaryMatch = streamContent.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
@@ -470,7 +470,7 @@ export function ReviewPanel({
               })()}
             </div>
           ) : (
-            <p className="text-xs text-blue-500 mt-2">
+            <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
               {isZh
                 ? "等待 AI 响应..."
                 : "Waiting for AI response..."}
