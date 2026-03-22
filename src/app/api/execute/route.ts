@@ -474,7 +474,12 @@ Implement the changes directly. Only read files you need to modify. Do NOT scan 
 After implementing, commit your changes with a descriptive commit message following the project's conventions. Read the project's CLAUDE.md or CONTRIBUTING.md if available for commit message style. Stage only the files you changed.`;
 
   const cwd = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
-  const engine = item.engine || "claude-code";
+  // Determine engine: use request provider, then item.engine, then resolve from settings
+  const resolved = resolveStepConfig("execute", reqProvider, reqModel);
+  const engine = reqProvider === "acp" ? "acp"
+    : reqProvider === "codex-acp" ? "codex-acp"
+    : item.engine
+    || (resolved.provider === "acp" ? "acp" : resolved.provider === "codex-acp" ? "codex-acp" : "claude-code");
   const encoder = new TextEncoder();
   let fullLog = "";
   const beforeHash = getHeadHash(cwd);
@@ -482,8 +487,7 @@ After implementing, commit your changes with a descriptive commit message follow
 
   // ACP engine: use Agent Client Protocol with session reuse per project
   if (engine === "acp" || engine === "codex-acp") {
-    const existingSessionId = project.sessionId; // Reuse project-level session
-    const resolved = resolveStepConfig("execute", reqProvider, reqModel);
+    const existingSessionId = project.sessionId;
 
     const responseStream = new ReadableStream({
       async start(controller) {
