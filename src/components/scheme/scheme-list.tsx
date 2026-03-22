@@ -132,11 +132,15 @@ export function SchemeList({
   const handleAnswer = useCallback(async (questionId: string, answer: string) => {
     if (!generationId) return;
     setCurrentQuestion(null);
-    await fetch("/api/schemes/generate/answer", {
+    const res = await fetch("/api/schemes/generate/answer", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ generationId, questionId, answer }),
     });
+    if (!res.ok) {
+      // Session lost — abort interactive, will fallback to standard
+      console.warn("[scheme] answer failed, session likely expired");
+    }
   }, [generationId]);
 
   const handleGenerate = async (provider: string, skills: string[], model?: string, interactive?: boolean) => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/ai/interactive-session";
+import { submitAnswer } from "@/lib/ai/interactive-session";
 import { parseJsonBody } from "@/lib/utils";
 
 export async function POST(req: NextRequest) {
@@ -19,18 +19,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const session = getSession(generationId);
-  if (!session) {
+  const submitted = submitAnswer(generationId, questionId, answer);
+  if (!submitted) {
     return NextResponse.json(
       { error: "Session not found or expired" },
       { status: 404 }
     );
-  }
-
-  const submitted = session.submitAnswer(questionId, answer);
-  if (!submitted) {
-    // Already answered or not waiting — idempotent success
-    return NextResponse.json({ ok: true, alreadyAnswered: true });
   }
 
   return NextResponse.json({ ok: true });

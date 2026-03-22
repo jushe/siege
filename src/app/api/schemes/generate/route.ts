@@ -9,7 +9,7 @@ import { resolveStepConfig, getStepModel } from "@/lib/ai/config";
 import { AcpClient } from "@/lib/acp/client";
 import { parseJsonBody } from "@/lib/utils";
 import { sseEncode } from "@/lib/ai/sse";
-import { createSession, removeSession } from "@/lib/ai/interactive-session";
+import { createSession, removeSession, waitForAnswer, pushQAHistory, getSession } from "@/lib/ai/interactive-session";
 import { buildAnalysisPrompt, buildSynthesisPrompt, parseQuestionsFromAIOutput } from "@/lib/ai/interactive-prompt";
 import { loadMemoryContext } from "@/lib/ai/memory";
 import fs from "fs";
@@ -340,16 +340,15 @@ export async function POST(req: NextRequest) {
               default: q.default,
             }));
 
-            // Wait for user answer
+            // Wait for user answer (polls SQLite)
             let answer: string;
             try {
-              answer = await session.waitForAnswer(q.id);
+              answer = await waitForAnswer(generationId, q.id);
             } catch {
-              // Timeout — use default
               answer = q.default || q.options[0] || "";
             }
 
-            session.qaHistory.push({
+            pushQAHistory(generationId, {
               id: q.id,
               question: q.text,
               options: q.options,
@@ -378,7 +377,7 @@ export async function POST(req: NextRequest) {
             plan.description || "",
             project.description || "",
             schemeSummary,
-            session.qaHistory,
+            getSession(generationId)?.qaHistory || [],
             hasChinese,
           );
 
