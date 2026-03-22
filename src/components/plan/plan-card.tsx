@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { statusIcons, TrashIcon, ClipboardIcon, type IconProps } from "@/components/ui/icons";
@@ -28,6 +29,8 @@ const StatusIcon = ({ status }: { status: string }) => {
 export function PlanCard({ plan, locale, onDelete }: PlanCardProps) {
   const t = useTranslations();
   const router = useRouter();
+  const isZh = t("common.back") === "返回";
+  const { confirm } = useConfirm();
 
   return (
     <div
@@ -54,9 +57,9 @@ export function PlanCard({ plan, locale, onDelete }: PlanCardProps) {
         <div className="flex items-center gap-3">
           <TimeAgo date={plan.updatedAt} locale={locale} />
           <button
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              if (window.confirm(t("plan.deleteConfirm"))) {
+              const ok = await confirm(isZh ? "删除计划" : "Delete Plan", t("plan.deleteConfirm")); if (ok) {
                 onDelete(plan.id);
               }
             }}

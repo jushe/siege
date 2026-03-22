@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { SchemeEditor } from "./scheme-editor";
 import { SchemeVersions } from "./scheme-versions";
 import { useGlobalLoading } from "@/components/ui/global-loading";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { FolderOpenIcon, PencilIcon, TrashIcon, ClipboardIcon, CheckIcon, SparklesIcon, HourglassIcon } from "@/components/ui/icons";
 
 interface Scheme {
@@ -52,6 +53,7 @@ export function SchemeCard({
   const t = useTranslations();
   const isZh = t("common.back") === "返回";
   const { startLoading, updateContent, stopLoading } = useGlobalLoading();
+  const { confirm } = useConfirm();
   const [editing, setEditing] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -181,8 +183,8 @@ export function SchemeCard({
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  if (window.confirm(t("scheme.deleteConfirm"))) {
+                onClick={async () => {
+                  const ok = await confirm(isZh ? "删除方案" : "Delete Scheme", t("scheme.deleteConfirm")); if (ok) {
                     onDelete(scheme.id);
                   }
                 }}
@@ -310,7 +312,7 @@ function CopyButton({ text, isZh }: { text: string; isZh: boolean }) {
     <Button
       variant="ghost"
       size="sm"
-      onClick={() => {
+      onClick={async () => {
         copyToClipboard(text).then(() => {
           setCopied(true);
           setTimeout(() => setCopied(false), 2000);

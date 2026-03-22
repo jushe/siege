@@ -10,6 +10,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ProviderModelSelect, useDefaultProvider } from "@/components/ui/provider-model-select";
 import { useGlobalLoading } from "@/components/ui/global-loading";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface TestResult {
   id: string;
@@ -67,6 +68,7 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
   const [model, setModel] = useState("");
   const defaultProvider = useDefaultProvider();
   const { startLoading, updateContent, stopLoading } = useGlobalLoading();
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     if (defaultProvider && !provider) setProvider(defaultProvider);
@@ -485,7 +487,7 @@ export function TestView({ planId, planStatus, onPlanStatusChange }: TestViewPro
                           <button onClick={() => startEditCase(tc)} className="text-xs px-2 py-1 rounded hover:opacity-80" style={{ background: "var(--card-border)", color: "var(--foreground)" }}>
                             {t("common.edit")}
                           </button>
-                          <button onClick={() => { if (window.confirm(isZh ? "确定删除？" : "Delete?")) deleteCase(tc.id); }} className="text-xs px-2 py-1 rounded hover:opacity-80 text-red-400" style={{ background: "rgba(239,68,68,0.1)" }}>
+                          <button onClick={() => { confirm(isZh ? "删除测试" : "Delete Test", isZh ? "确定删除？" : "Delete this test?").then(ok => { if (ok) deleteCase(tc.id); }); }} className="text-xs px-2 py-1 rounded hover:opacity-80 text-red-400" style={{ background: "rgba(239,68,68,0.1)" }}>
                             {t("common.delete")}
                           </button>
                         </div>

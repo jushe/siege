@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { addRecentProject } from "@/lib/recent-projects";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface ProjectCardProps {
   project: {
@@ -21,6 +22,8 @@ interface ProjectCardProps {
 export function ProjectCard({ project, locale, onDelete }: ProjectCardProps) {
   const t = useTranslations();
   const router = useRouter();
+  const { confirm } = useConfirm();
+  const isZh = t("common.back") === "返回";
 
   return (
     <div
@@ -37,9 +40,9 @@ export function ProjectCard({ project, locale, onDelete }: ProjectCardProps) {
           <h3 className="font-semibold text-lg">{project.name}</h3>
         </div>
         <button
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            if (window.confirm(t("project.deleteConfirm"))) {
+            const ok = await confirm(isZh ? "删除项目" : "Delete Project", t("project.deleteConfirm")); if (ok) {
               onDelete(project.id);
             }
           }}

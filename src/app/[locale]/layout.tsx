@@ -3,6 +3,7 @@ import { getMessages } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { routing } from "@/i18n/routing";
 import { GlobalLoadingProvider } from "@/components/ui/global-loading";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { FolderIcon, SettingsIcon } from "@/components/ui/icons";
 
 export default async function LocaleLayout({
@@ -23,6 +24,7 @@ export default async function LocaleLayout({
   return (
     <NextIntlClientProvider messages={messages}>
       <GlobalLoadingProvider>
+      <ConfirmProvider>
       <div className="min-h-screen" style={{ background: "var(--background)", color: "var(--foreground)" }}>
         <nav className="border-b px-6 py-3 flex items-center justify-between" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
           <div className="flex items-center gap-6">
@@ -66,6 +68,7 @@ export default async function LocaleLayout({
         </nav>
         <main className="mx-auto max-w-7xl px-6 py-8">{children}</main>
       </div>
+      </ConfirmProvider>
       </GlobalLoadingProvider>
     </NextIntlClientProvider>
   );

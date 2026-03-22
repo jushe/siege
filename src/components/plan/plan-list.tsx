@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { PlanCard } from "./plan-card";
 import { CreatePlanDialog } from "./create-plan-dialog";
 import { ImportPlanDialog } from "./import-plan-dialog";
@@ -34,6 +35,8 @@ interface PlanListProps {
 
 export function PlanList({ projectId, locale }: PlanListProps) {
   const t = useTranslations();
+  const { confirm } = useConfirm();
+  const isZh = t("common.back") === "返回";
   const [folders, setFolders] = useState<Folder[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
@@ -202,9 +205,9 @@ export function PlanList({ projectId, locale }: PlanListProps) {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (window.confirm(`Delete folder "${folder.name}"?`)) {
-                    handleDeleteFolder(folder.id);
-                  }
+                  confirm(isZh ? "删除文件夹" : "Delete Folder", isZh ? `确定删除文件夹 "${folder.name}"？` : `Delete folder "${folder.name}"?`).then(ok => {
+                    if (ok) handleDeleteFolder(folder.id);
+                  });
                 }}
                 className="hover:text-red-500 text-xs"
                 style={{ color: "var(--muted)" }}
