@@ -145,6 +145,9 @@ Output the JSON array now:`;
           if (project && session.sessionId !== project.sessionId) {
             db.update(projects).set({ sessionId: session.sessionId }).where(eq(projects.id, project.id)).run();
           }
+          if (resolved.model) {
+            await acpClient.setModel(session.sessionId, resolved.model);
+          }
 
           await acpClient.prompt(session.sessionId, schedulePrompt, (type, text) => {
             if (type === "text") { fullText += text; controller.enqueue(encoder.encode(text)); }

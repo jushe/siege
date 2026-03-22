@@ -461,6 +461,9 @@ export async function POST(req: NextRequest) {
           } else {
             session = await acpClient.createSession(resolved.model);
           }
+          if (resolved.model) {
+            await acpClient.setModel(session.sessionId, resolved.model);
+          }
 
           // Save session for reuse
           if (session.sessionId !== project.sessionId) {

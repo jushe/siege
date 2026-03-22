@@ -394,7 +394,7 @@ function createLspTools(repoPath: string) {
 export async function POST(req: NextRequest) {
   const [body, errRes] = await parseJsonBody(req);
   if (errRes) return errRes;
-  const { itemId, skills: requestSkills } = body as { itemId: string; skills?: string[] };
+  const { itemId, skills: requestSkills, provider: reqProvider, model: reqModel } = body as { itemId: string; skills?: string[]; provider?: string; model?: string };
 
   if (!itemId) {
     return NextResponse.json({ error: "itemId is required" }, { status: 400 });
@@ -483,7 +483,7 @@ After implementing, commit your changes with a descriptive commit message follow
   // ACP engine: use Agent Client Protocol with session reuse per project
   if (engine === "acp" || engine === "codex-acp") {
     const existingSessionId = project.sessionId; // Reuse project-level session
-    const resolved = resolveStepConfig("execute");
+    const resolved = resolveStepConfig("execute", reqProvider, reqModel);
 
     const responseStream = new ReadableStream({
       async start(controller) {
@@ -499,6 +499,11 @@ After implementing, commit your changes with a descriptive commit message follow
             session = await acpClient.resumeSession(existingSessionId);
           } else {
             session = await acpClient.createSession(resolved.model);
+          }
+
+          // Always set model for this run (user may have changed selection)
+          if (resolved.model) {
+            await acpClient.setModel(session.sessionId, resolved.model);
           }
 
           // Save session ID to project for future reuse
@@ -565,7 +570,7 @@ After implementing, commit your changes with a descriptive commit message follow
   // Default engine: Vercel AI SDK with tools
   let configuredModel;
   try {
-    configuredModel = getStepModel("execute");
+    configuredModel = getStepModel("execute", reqProvider, reqModel);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     db.update(scheduleItems)

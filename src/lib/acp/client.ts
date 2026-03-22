@@ -154,6 +154,25 @@ export class AcpClient {
     return result;
   }
 
+  async setModel(sessionId: string, model: string): Promise<void> {
+    try {
+      await this.request("session/set_config_option", {
+        sessionId,
+        configId: "model",
+        value: model,
+      });
+    } catch {
+      // fallback param format
+      try {
+        await this.request("session/set_config_option", {
+          sessionId,
+          key: "model",
+          value: model,
+        });
+      } catch { /* ignore */ }
+    }
+  }
+
   async resumeSession(sessionId: string): Promise<AcpSessionInfo> {
     try {
       const result = await this.request("session/load", {
