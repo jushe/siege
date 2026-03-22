@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { plans, projects, schemes } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { plans, projects, schemes, reviews, reviewItems } from "@/lib/db/schema";
+import { eq, and } from "drizzle-orm";
 import { execSync } from "child_process";
 import { streamText, tool, stepCountIs, generateText } from "ai";
 import { z } from "zod";
@@ -49,11 +49,20 @@ function saveScheme(planId: string, content: string, planStatus: string): boolea
   const cleanedContent = cleanSchemeContent(content);
   if (!cleanedContent) return false;
 
-  // Extract title from first heading, or use first line
   const headingMatch = cleanedContent.match(/^#{1,3}\s+(.+)/m);
   const title = headingMatch?.[1]?.replace(/[*_`~]/g, "").trim() || cleanedContent.split("\n")[0]?.slice(0, 60) || "Generated Scheme";
 
   const db = getDb();
+
+  // Delete old scheme reviews + findings when regenerating
+  const oldReviews = db.select().from(reviews)
+    .where(and(eq(reviews.planId, planId), eq(reviews.type, "scheme")))
+    .all();
+  for (const r of oldReviews) {
+    db.delete(reviewItems).where(eq(reviewItems.reviewId, r.id)).run();
+    db.delete(reviews).where(eq(reviews.id, r.id)).run();
+  }
+
   db.insert(schemes).values({
     id: crypto.randomUUID(), planId,
     title, content: cleanedContent, sourceType: "local_analysis",
