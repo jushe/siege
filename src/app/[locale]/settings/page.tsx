@@ -6,6 +6,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog } from "@/components/ui/dialog";
 import { useGlobalLoading } from "@/components/ui/global-loading";
+
+function CollapsibleSection({ title, icon, defaultOpen = false, badge, children }: {
+  title: string; icon: React.ReactNode; defaultOpen?: boolean; badge?: string; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="mb-4">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 py-3 text-left hover:opacity-80"
+      >
+        <svg className={`w-4 h-4 shrink-0 transition-transform ${open ? "rotate-90" : ""}`} style={{ color: "var(--muted)" }} viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clipRule="evenodd" />
+        </svg>
+        {icon}
+        <span className="text-lg font-semibold" style={{ color: "var(--foreground)" }}>{title}</span>
+        {badge && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--muted)" }}>{badge}</span>}
+      </button>
+      {open && <div className="pl-6">{children}</div>}
+    </section>
+  );
+}
 import { BotIcon, MessageSquareIcon, PackageIcon, SettingsIcon, TargetIcon, InboxIcon, LayoutGridIcon, BrainIcon, GlobeIcon, SearchIcon, CalendarIcon, ZapIcon, FlaskIcon, FileTextIcon } from "@/components/ui/icons";
 
 interface ProviderStatus {
@@ -138,10 +160,11 @@ export default function SettingsPage({
       <h1 className="text-3xl font-bold mt-2 mb-8">{t("nav.settings")}</h1>
 
       {/* AI Providers */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">
-          <><BotIcon size={18} className="inline-block align-[-3px]" /> {isZh ? "AI 服务配置" : "AI Provider Configuration"}</>
-        </h2>
+      <CollapsibleSection
+        title={isZh ? "AI 服务配置" : "AI Provider Configuration"}
+        icon={<BotIcon size={18} />}
+        defaultOpen={true}
+      >
 
         {/* Claude Code Login — for ACP engine */}
         <div className="rounded-lg border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
@@ -404,16 +427,21 @@ export default function SettingsPage({
             );
           })}
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Per-Step AI Configuration */}
-      <StepModelSection settings={settings} setSettings={setSettings} isZh={isZh} onSave={saveSettings} />
+      <CollapsibleSection
+        title={isZh ? "各步骤 AI 配置" : "Per-Step AI Configuration"}
+        icon={<LayoutGridIcon size={18} />}
+      >
+        <StepModelSectionInner settings={settings} setSettings={setSettings} isZh={isZh} onSave={saveSettings} />
+      </CollapsibleSection>
 
       {/* General Settings */}
-      <section className="mb-8">
-        <h2 className="text-xl font-semibold mb-4">
-          <><SettingsIcon size={18} className="inline-block align-[-3px]" /> {isZh ? "通用设置" : "General Settings"}</>
-        </h2>
+      <CollapsibleSection
+        title={isZh ? "通用设置" : "General Settings"}
+        icon={<SettingsIcon size={18} />}
+      >
         <div className="rounded-lg border p-6 space-y-4" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
@@ -449,27 +477,33 @@ export default function SettingsPage({
             {saved && <span className="text-sm text-green-600">✓</span>}
           </div>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Memories */}
-      <MemorySection isZh={isZh} />
+      <CollapsibleSection title={isZh ? "记忆" : "Memories"} icon={<BrainIcon size={18} />} badge={String(skills.length > 0 ? "" : "")}>
+        <MemorySectionInner isZh={isZh} />
+      </CollapsibleSection>
 
       {/* Import Sources */}
-      <ImportSourcesSection isZh={isZh} />
+      <CollapsibleSection title={isZh ? "导入来源" : "Import Sources"} icon={<InboxIcon size={18} />}>
+        <ImportSourcesSectionInner isZh={isZh} />
+      </CollapsibleSection>
 
       {/* Skills */}
-      <SkillsSection
+      <CollapsibleSection title={isZh ? "技能" : "Skills"} icon={<TargetIcon size={18} />} badge={`${skills.length}`}>
+        <SkillsSectionInner
         skills={skills}
         skillsBySource={skillsBySource}
         isZh={isZh}
         hasAi={!!(aiConfig?.claude?.loggedIn || aiConfig?.anthropic?.configured || aiConfig?.openai?.configured || aiConfig?.glm?.configured)}
-        onSkillsChange={() => fetch("/api/skills").then((r) => r.json()).then(setSkills)}
-      />
+          onSkillsChange={() => fetch("/api/skills").then((r) => r.json()).then(setSkills)}
+        />
+      </CollapsibleSection>
     </div>
   );
 }
 
-function SkillsSection({
+function SkillsSectionInner({
   skills,
   skillsBySource,
   isZh,
@@ -666,7 +700,7 @@ const IMPORT_SOURCE_FIELDS: Record<
   ],
 };
 
-function ImportSourcesSection({ isZh }: { isZh: boolean }) {
+function ImportSourcesSectionInner({ isZh }: { isZh: boolean }) {
   const [configs, setConfigs] = useState<ImportConfigItem[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [addSource, setAddSource] = useState("notion");
@@ -873,7 +907,7 @@ const ALL_PROVIDER_OPTIONS = [
   { value: "glm", labelZh: "GLM (智谱)", labelEn: "GLM (智谱)" },
 ];
 
-function StepModelSection({
+function StepModelSectionInner({
   settings,
   setSettings,
   isZh,
@@ -893,10 +927,7 @@ function StepModelSection({
   };
 
   return (
-    <section className="mb-8">
-      <h2 className="text-xl font-semibold mb-2">
-        <><LayoutGridIcon size={18} className="inline-block align-[-3px]" /> {isZh ? "各步骤 AI 配置" : "Per-Step AI Configuration"}</>
-      </h2>
+    <div>
       <p className="text-xs mb-4" style={{ color: "var(--muted)" }}>
         {isZh
           ? "为不同步骤设置不同的 AI 提供商和模型。留空则使用全局默认。"
@@ -960,7 +991,7 @@ function StepModelSection({
         </Button>
         {saved && <span className="text-sm text-green-600">✓</span>}
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -974,7 +1005,7 @@ interface MemoryItem {
   createdAt: string;
 }
 
-function MemorySection({ isZh }: { isZh: boolean }) {
+function MemorySectionInner({ isZh }: { isZh: boolean }) {
   const [items, setItems] = useState<MemoryItem[]>([]);
   const [addOpen, setAddOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
