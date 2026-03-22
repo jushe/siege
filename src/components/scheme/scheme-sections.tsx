@@ -66,6 +66,7 @@ function joinSections(preamble: string, sections: Section[]): string {
 
 interface Finding {
   id: string;
+  targetId: string;
   title: string;
   content: string | null;
   severity: string;
@@ -242,11 +243,24 @@ export function SchemeSections({
         {sections.map((section, i) => {
           const isOpen = expandedIndex === i;
           const isEditing = editingIndex === i;
-          // Match findings to section by keyword overlap
+          // Match findings to section by target_id hint, keyword overlap, or content search
           const sectionFindings = findings.filter((f) => {
+            // 1. Match by target_id section hint (e.g. "schemeId:event-loop")
+            const hint = f.targetId?.split(":")[1]?.toLowerCase() || "";
+            if (hint) {
+              const sectionLower = `${section.title} ${section.content}`.toLowerCase();
+              if (sectionLower.includes(hint) || sectionLower.includes(hint.replace(/-/g, " "))) return true;
+            }
+            // 2. Match by keyword overlap (works for same-language titles)
             const text = `${f.title} ${f.content || ""}`.toLowerCase();
-            const words = section.title.toLowerCase().split(/\s+/).filter(w => w.length > 2);
-            return words.some(w => text.includes(w));
+            const words = section.title.toLowerCase().split(/[\s\u3000]+/).filter(w => w.length > 2);
+            if (words.some(w => text.includes(w))) return true;
+            // 3. Search finding keywords in section content
+            const findingWords = f.title.toLowerCase().split(/[\s\u3000、，]+/).filter(w => w.length > 2);
+            const contentLower = section.content.toLowerCase();
+            const matchCount = findingWords.filter(w => contentLower.includes(w)).length;
+            if (matchCount >= 2) return true;
+            return false;
           });
           const unresolvedCount = sectionFindings.filter(f => !f.resolved).length;
           return (
@@ -418,6 +432,50 @@ export function SchemeSections({
           );
         })}
       </div>
+
+      {/* Unmatched findings — show at the bottom if they didn't match any section */}
+      {(() => {
+        const matchedIds = new Set<string>();
+        for (const section of sections) {
+          for (const f of findings) {
+            const hint = f.targetId?.split(":")[1]?.toLowerCase() || "";
+            const sectionLower = `${section.title} ${section.content}`.toLowerCase();
+            if (hint && (sectionLower.includes(hint) || sectionLower.includes(hint.replace(/-/g, " ")))) { matchedIds.add(f.id); continue; }
+            const text = `${f.title} ${f.content || ""}`.toLowerCase();
+            const words = section.title.toLowerCase().split(/[\s\u3000]+/).filter(w => w.length > 2);
+            if (words.some(w => text.includes(w))) { matchedIds.add(f.id); continue; }
+            const findingWords = f.title.toLowerCase().split(/[\s\u3000、，]+/).filter(w => w.length > 2);
+            const contentLower = section.content.toLowerCase();
+            if (findingWords.filter(w => contentLower.includes(w)).length >= 2) { matchedIds.add(f.id); continue; }
+          }
+        }
+        const unmatched = findings.filter(f => !matchedIds.has(f.id));
+        if (unmatched.length === 0) return null;
+        return (
+          <div className="mt-3 space-y-2">
+            <h5 className="text-xs font-medium" style={{ color: "var(--muted)" }}>
+              {isZh ? "审查发现" : "Review Findings"}
+            </h5>
+            {unmatched.map((f) => {
+              const s = severityStyles[f.severity] || severityStyles.info;
+              return (
+                <div
+                  key={f.id}
+                  className={`rounded-md border px-3 py-2 text-xs ${f.resolved ? "opacity-40" : ""}`}
+                  style={{ background: s.bg, borderColor: s.border, color: s.text }}
+                >
+                  <div className="flex items-center gap-2 font-medium">
+                    <span className="uppercase text-[10px] px-1.5 py-0.5 rounded" style={{ background: s.border }}>{f.severity}</span>
+                    {f.title}
+                    {f.resolved && <span style={{ color: "var(--muted)" }}>(resolved)</span>}
+                  </div>
+                  {f.content && <div className="mt-1 opacity-90"><MarkdownRenderer content={f.content} /></div>}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
     </div>
   );
 }
