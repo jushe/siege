@@ -32,9 +32,9 @@ export async function GET(req: NextRequest) {
   try {
     let cmd: string;
     if (query) {
-      cmd = `gh search repos "${query}" --owner @me --limit ${limit} --json name,fullName,description,url,isPrivate,primaryLanguage,updatedAt`;
+      cmd = `gh search repos "${query}" --owner @me --limit ${limit} --json name,fullName,description,url,isPrivate,language,updatedAt`;
     } else {
-      cmd = `gh repo list --limit ${limit} --json name,description,url,isPrivate,primaryLanguage,updatedAt,nameWithOwner`;
+      cmd = `gh repo list --limit ${limit} --json name,description,url,isPrivate,language,updatedAt,nameWithOwner`;
     }
 
     const output = execSync(cmd, { encoding: "utf-8", timeout: 15000 });
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       description: r.description || "",
       cloneUrl: r.url,
       isPrivate: r.isPrivate,
-      language: r.primaryLanguage?.name || "",
+      language: typeof r.language === "string" ? r.language : r.language?.name || "",
       updatedAt: r.updatedAt,
     }));
 
