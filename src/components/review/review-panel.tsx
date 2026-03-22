@@ -496,19 +496,30 @@ export function ReviewPanel({
             </div>
           </div>
           {streamContent ? (
-            <div className="mt-3 max-h-40 overflow-y-auto text-xs rounded p-2 whitespace-pre-wrap" style={{ background: "var(--background)", color: "var(--foreground)" }}>
-              {(() => {
-                // Extract "summary" value from partial JSON, or show non-JSON text
-                const summaryMatch = streamContent.match(/"summary"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-                if (summaryMatch) {
-                  return summaryMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"').slice(-500);
+            <div className="mt-3 max-h-40 overflow-y-auto text-xs rounded p-2 space-y-1" style={{ background: "var(--background)" }}>
+              {streamContent.split("\n").filter(Boolean).map((line, i) => {
+                // Tool call lines
+                if (line.startsWith("> **")) {
+                  return <div key={i} className="flex items-center gap-1" style={{ color: "var(--muted)" }}>
+                    <span className="text-[10px]">▸</span>
+                    <span>{line.replace(/^> \*\*/, "").replace(/\*\*.*/, "")}: {line.replace(/.*\*\*:?\s*/, "").slice(0, 80)}</span>
+                  </div>;
                 }
-                // If no JSON at all, show the text
-                if (!streamContent.includes('"items"') && !streamContent.includes('"summary"')) {
-                  return streamContent.slice(-500);
+                // Thinking lines
+                if (line.startsWith("[thinking]")) {
+                  return <div key={i} className="italic" style={{ color: "var(--muted)" }}>{line.replace("[thinking] ", "").slice(0, 80)}...</div>;
                 }
-                return isZh ? `AI 正在生成审查结果... (${Math.round(streamContent.length / 1024)}KB)` : `AI generating review... (${Math.round(streamContent.length / 1024)}KB)`;
-              })()}
+                // Status lines
+                if (line.startsWith("AI ") || line.startsWith("Session:")) {
+                  return <div key={i} style={{ color: "var(--muted)" }}>{line}</div>;
+                }
+                // JSON lines — hide
+                if (line.trim().startsWith("{") || line.trim().startsWith('"') || line.trim().startsWith("[")) {
+                  return null;
+                }
+                // Normal text
+                return <div key={i} style={{ color: "var(--foreground)" }}>{line.slice(0, 120)}</div>;
+              })}
             </div>
           ) : (
             <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
