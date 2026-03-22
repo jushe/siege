@@ -45,12 +45,16 @@ function cleanSchemeContent(raw: string): string {
   return cleaned.join("\n").trim();
 }
 
-function saveScheme(planId: string, content: string, planStatus: string): boolean {
+function saveScheme(planId: string, content: string, planStatus: string, planName?: string): boolean {
   const cleanedContent = cleanSchemeContent(content);
   if (!cleanedContent) return false;
 
-  const headingMatch = cleanedContent.match(/^#{1,3}\s+(.+)/m);
-  const title = headingMatch?.[1]?.replace(/[*_`~]/g, "").trim() || cleanedContent.split("\n")[0]?.slice(0, 60) || "Generated Scheme";
+  // Extract title: prefer h1, then first line before any ## heading, then plan name
+  const h1Match = cleanedContent.match(/^#\s+(.+)/m);
+  const firstLine = cleanedContent.split("\n")[0]?.trim();
+  const title = h1Match?.[1]?.replace(/[*_`~]/g, "").trim()
+    || (firstLine && !firstLine.startsWith("##") ? firstLine.slice(0, 80) : null)
+    || planName || "Generated Scheme";
 
   const db = getDb();
 
@@ -410,7 +414,7 @@ export async function POST(req: NextRequest) {
 
           // Save scheme
           if (schemeText.trim()) {
-            saveScheme(planId, schemeText.trim(), plan.status);
+            saveScheme(planId, schemeText.trim(), plan.status, plan.name);
           }
 
           controller.enqueue(sseEncode("done", {}));
@@ -474,7 +478,7 @@ export async function POST(req: NextRequest) {
           });
 
           if (fullText.trim()) {
-            const saved = saveScheme(planId, fullText.trim(), plan.status);
+            const saved = saveScheme(planId, fullText.trim(), plan.status, plan.name);
             if (!saved) {
               controller.enqueue(encoder.encode("\n\n---\n\n**Error: AI only explored the codebase but did not generate a scheme. Please try again.**\n"));
             }
@@ -530,7 +534,7 @@ export async function POST(req: NextRequest) {
         }
 
         if (fullText.trim()) {
-          const saved = saveScheme(planId, fullText.trim(), plan.status);
+          const saved = saveScheme(planId, fullText.trim(), plan.status, plan.name);
           if (!saved) {
             controller.enqueue(encoder.encode("\n\n---\n\n**Error: AI only explored the codebase but did not generate a scheme. Please try again.**\n"));
           }
