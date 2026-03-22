@@ -79,7 +79,7 @@ export function ScheduleView({
 
   // Edit state
   const [editingItem, setEditingItem] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", description: "", startDate: "", endDate: "", engine: "claude-code" });
+  const [editForm, setEditForm] = useState({ title: "", description: "", startDate: "", endDate: "", engine: "claude-code", provider: "", model: "" });
 
   // Add task state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -378,6 +378,8 @@ export function ScheduleView({
       startDate: toLocalDatetime(item.startDate),
       endDate: toLocalDatetime(item.endDate),
       engine: item.engine || "claude-code",
+      provider: schedProvider,
+      model: schedModel,
     });
   };
 
@@ -391,7 +393,7 @@ export function ScheduleView({
         description: editForm.description,
         startDate: new Date(editForm.startDate).toISOString(),
         endDate: new Date(editForm.endDate).toISOString(),
-        engine: editForm.engine,
+        engine: editForm.provider === "acp" ? "acp" : editForm.provider === "codex-acp" ? "codex-acp" : "claude-code",
       }),
     });
     setEditingItem(null);
@@ -605,14 +607,14 @@ export function ScheduleView({
                       </label>
                     </div>
                     <div>
-                      <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "执行引擎" : "Engine"}</span>
-                      <select className="w-full border rounded px-2 py-1 text-sm"
-                        style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-                        value={editForm.engine} onChange={(e) => setEditForm({ ...editForm, engine: e.target.value })}>
-                        <option value="claude-code">Claude Code (SDK)</option>
-                        <option value="acp">Claude Code (ACP)</option>
-                        <option value="codex-acp">Codex (ACP)</option>
-                      </select>
+                      <span className="text-xs" style={{ color: "var(--muted)" }}>{isZh ? "Provider / 模型" : "Provider / Model"}</span>
+                      <ProviderModelSelect
+                        provider={editForm.provider}
+                        model={editForm.model}
+                        onProviderChange={(p) => setEditForm({ ...editForm, provider: p })}
+                        onModelChange={(m) => setEditForm({ ...editForm, model: m })}
+                        compact
+                      />
                     </div>
                     <div className="flex gap-2 justify-end">
                       <Button variant="secondary" size="sm" onClick={() => setEditingItem(null)}>{t("common.cancel")}</Button>
