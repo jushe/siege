@@ -74,8 +74,8 @@ export function GenerateSchemeDialog({
         {/* Interactive mode toggle */}
         <label className="flex items-center gap-3 cursor-pointer">
           <div
-            className={`relative w-10 h-5 rounded-full transition-colors ${interactiveMode ? "bg-blue-500" : ""}`}
-            style={!interactiveMode ? { background: "var(--card-border)" } : undefined}
+            className="relative w-10 h-5 rounded-full transition-colors"
+            style={{ background: interactiveMode ? "#22c55e" : "var(--card-border)" }}
             onClick={() => setInteractiveMode(!interactiveMode)}
           >
             <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${interactiveMode ? "translate-x-5" : "translate-x-0.5"}`} />

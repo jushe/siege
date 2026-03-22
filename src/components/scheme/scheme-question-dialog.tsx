@@ -68,7 +68,7 @@ export function SchemeQuestionDialog({
         <div className="w-full h-1.5 rounded-full" style={{ background: "var(--card-border)" }}>
           <div
             className="h-full rounded-full transition-all"
-            style={{ width: `${(questionNumber / totalQuestions) * 100}%`, background: "var(--accent, #3b82f6)" }}
+            style={{ width: `${(questionNumber / totalQuestions) * 100}%`, background: "var(--accent, #22c55e)" }}
           />
         </div>
 
@@ -84,11 +84,11 @@ export function SchemeQuestionDialog({
               <label
                 key={opt}
                 className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                  !useCustom && selected === opt ? "ring-2 ring-blue-400" : ""
+                  !useCustom && selected === opt ? "ring-2 ring-green-400" : ""
                 }`}
                 style={{
-                  background: !useCustom && selected === opt ? "rgba(59,130,246,0.08)" : "var(--card)",
-                  borderColor: !useCustom && selected === opt ? "rgba(59,130,246,0.4)" : "var(--card-border)",
+                  background: !useCustom && selected === opt ? "rgba(34,197,94,0.08)" : "var(--card)",
+                  borderColor: !useCustom && selected === opt ? "rgba(34,197,94,0.4)" : "var(--card-border)",
                 }}
               >
                 <input
@@ -112,11 +112,11 @@ export function SchemeQuestionDialog({
             {/* Custom answer option */}
             <label
               className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                useCustom ? "ring-2 ring-blue-400" : ""
+                useCustom ? "ring-2 ring-green-400" : ""
               }`}
               style={{
-                background: useCustom ? "rgba(59,130,246,0.08)" : "var(--card)",
-                borderColor: useCustom ? "rgba(59,130,246,0.4)" : "var(--card-border)",
+                background: useCustom ? "rgba(34,197,94,0.08)" : "var(--card)",
+                borderColor: useCustom ? "rgba(34,197,94,0.4)" : "var(--card-border)",
               }}
             >
               <input
@@ -136,7 +136,7 @@ export function SchemeQuestionDialog({
                     onChange={(e) => setCustom(e.target.value)}
                     autoFocus
                     rows={2}
-                    className="mt-2 w-full rounded-md border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="mt-2 w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
                     style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
                     placeholder={isZh ? "输入你的想法..." : "Type your answer..."}
                   />
@@ -153,7 +153,7 @@ export function SchemeQuestionDialog({
             onChange={(e) => { setCustom(e.target.value); setUseCustom(true); }}
             autoFocus
             rows={3}
-            className="w-full rounded-md border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-1"
             style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
             placeholder={isZh ? "输入你的想法..." : "Type your answer..."}
           />
