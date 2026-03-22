@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface ProviderConfig {
   id: string;
@@ -9,7 +9,6 @@ interface ProviderConfig {
   models: string[];
 }
 
-// ACP providers are always available (they use CLI auth, not API keys)
 const ACP_PROVIDERS: ProviderConfig[] = [
   { id: "acp", label: "Claude Code", badge: "ACP", models: [
     "claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001",
@@ -21,7 +20,6 @@ const ACP_PROVIDERS: ProviderConfig[] = [
   ]},
 ];
 
-// SDK providers — only shown if API key is configured
 const SDK_PROVIDERS: Record<string, { label: string; models: string[] }> = {
   anthropic: { label: "Claude", models: [
     "claude-opus-4-6", "claude-sonnet-4-6", "claude-haiku-4-5-20251001",
@@ -36,6 +34,85 @@ const SDK_PROVIDERS: Record<string, { label: string; models: string[] }> = {
     "glm-5", "glm-4-plus", "glm-4", "glm-4-air", "glm-4-flash", "glm-4-long",
   ]},
 };
+
+/** Custom dropdown that matches dark theme */
+function Dropdown({ value, options, onChange, disabled, placeholder, compact }: {
+  value: string;
+  options: Array<{ value: string; label: string; badge?: string }>;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  placeholder: string;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const selected = options.find(o => o.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => !disabled && setOpen(!open)}
+        disabled={disabled}
+        className={`flex items-center gap-1.5 rounded-md border ${compact ? "px-2 py-1 text-xs" : "px-3 py-1.5 text-sm"} w-full text-left`}
+        style={{ background: "var(--card)", color: "var(--foreground)", borderColor: open ? "var(--foreground)" : "var(--card-border)" }}
+      >
+        <span className="flex-1 truncate">
+          {selected ? (
+            <span className="flex items-center gap-1.5">
+              {selected.label}
+              {selected.badge && <span className="text-[10px] px-1 rounded" style={{ background: "var(--card-border)" }}>{selected.badge}</span>}
+            </span>
+          ) : (
+            <span style={{ color: "var(--muted)" }}>{placeholder}</span>
+          )}
+        </span>
+        <svg className={`w-3 h-3 shrink-0 transition-transform ${open ? "rotate-180" : ""}`} style={{ color: "var(--muted)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full min-w-[160px] rounded-md border shadow-lg overflow-hidden"
+          style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          <button
+            className={`w-full text-left ${compact ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"} hover:opacity-80`}
+            style={{ color: "var(--muted)" }}
+            onClick={() => { onChange(""); setOpen(false); }}
+          >
+            {placeholder}
+          </button>
+          {options.map(o => (
+            <button
+              key={o.value}
+              className={`w-full text-left ${compact ? "px-2 py-1.5 text-xs" : "px-3 py-2 text-sm"} flex items-center gap-1.5 hover:opacity-80`}
+              style={{
+                background: o.value === value ? "var(--foreground)" : undefined,
+                color: o.value === value ? "var(--background)" : "var(--foreground)",
+              }}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+            >
+              {o.label}
+              {o.badge && (
+                <span className="text-[10px] px-1 rounded" style={{
+                  background: o.value === value ? "rgba(0,0,0,0.2)" : "var(--card-border)",
+                }}>{o.badge}</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface ProviderModelSelectProps {
   provider: string;
@@ -60,9 +137,7 @@ export function ProviderModelSelect({
     fetch("/api/settings").then(r => r.json()).then(settings => {
       const providers: ProviderConfig[] = [...ACP_PROVIDERS];
       for (const [id, config] of Object.entries(SDK_PROVIDERS)) {
-        const hasKey = !!settings[`${id}_api_key`];
-        const hasUrl = !!settings[`${id}_base_url`];
-        if (hasKey || hasUrl) {
+        if (settings[`${id}_api_key`] || settings[`${id}_base_url`]) {
           providers.push({ id, label: config.label, models: config.models });
         }
       }
@@ -73,36 +148,34 @@ export function ProviderModelSelect({
   const currentProvider = availableProviders.find(p => p.id === provider);
   const models = currentProvider?.models || [];
 
+  const providerOptions = availableProviders.map(p => ({
+    value: p.id,
+    label: p.label,
+    badge: p.badge,
+  }));
+
+  const modelOptions = models.map(m => ({ value: m, label: m }));
+
   if (compact) {
     return (
       <div className="flex items-center gap-2">
-        <select
+        <Dropdown
           value={provider}
-          onChange={(e) => { onProviderChange(e.target.value); onModelChange(""); }}
+          options={providerOptions}
+          onChange={(v) => { onProviderChange(v); onModelChange(""); }}
           disabled={disabled}
-          className="rounded-md border px-2 py-1.5 text-xs"
-          style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-        >
-          <option value="">默认 / Default</option>
-          {availableProviders.map(p => (
-            <option key={p.id} value={p.id}>
-              {p.label}{p.badge ? ` (${p.badge})` : ""}
-            </option>
-          ))}
-        </select>
+          placeholder="默认 / Default"
+          compact
+        />
         {provider && models.length > 0 && (
-          <select
+          <Dropdown
             value={model}
-            onChange={(e) => onModelChange(e.target.value)}
+            options={modelOptions}
+            onChange={onModelChange}
             disabled={disabled}
-            className="rounded-md border px-2 py-1.5 text-xs"
-            style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-          >
-            <option value="">默认模型 / Default</option>
-            {models.map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+            placeholder="默认模型"
+            compact
+          />
         )}
       </div>
     );
@@ -133,24 +206,18 @@ export function ProviderModelSelect({
         ))}
       </div>
       {provider && models.length > 0 && (
-        <select
+        <Dropdown
           value={model}
-          onChange={(e) => onModelChange(e.target.value)}
+          options={modelOptions}
+          onChange={onModelChange}
           disabled={disabled}
-          className="w-full rounded-md border px-3 py-2 text-sm"
-          style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
-        >
-          <option value="">默认模型 / Default Model</option>
-          {models.map(m => (
-            <option key={m} value={m}>{m}</option>
-          ))}
-        </select>
+          placeholder="默认模型 / Default Model"
+        />
       )}
     </div>
   );
 }
 
-/** Hook to auto-detect default provider from settings */
 export function useDefaultProvider() {
   const [provider, setProvider] = useState("");
   useEffect(() => {
