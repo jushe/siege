@@ -59,6 +59,7 @@ export class AcpClient {
       : "@zed-industries/claude-agent-acp@latest";
     this.proc = spawn("npx", ["-y", agentPkg], {
       stdio: ["pipe", "pipe", "pipe"],
+      cwd: this.repoPath,
       env: { ...process.env },
     });
 
