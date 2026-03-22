@@ -90,39 +90,37 @@ export class AcpClient {
       this.pending.clear();
     });
 
-    // Wait for process to be ready — poll instead of hardcoded delay
-    const startTime = Date.now();
-    const maxWait = 15000; // 15s max for npx to download + start
-    while (Date.now() - startTime < maxWait) {
-      if (earlyExit) {
-        const stderr = this.stderrBuffer.join("\n");
-        throw new Error(
-          `ACP agent (${this.agentType}) failed to start (exit code ${earlyExitCode}).` +
-          (stderr ? ` Stderr: ${stderr.slice(-500)}` : "")
-        );
-      }
-      // Check if stdout has received any data (agent is alive)
-      if (this.buffer.length > 0 || this.pending.size > 0) break;
-      await new Promise(r => setTimeout(r, 300));
-    }
+    // Wait for process to be ready — check it hasn't exited early
+    await new Promise(r => setTimeout(r, 3000));
 
-    if (!this.proc) {
+    if (earlyExit || !this.proc) {
       const stderr = this.stderrBuffer.join("\n");
       throw new Error(
-        `ACP agent (${this.agentType}) not running after ${maxWait / 1000}s.` +
+        `ACP agent (${this.agentType}) failed to start (exit code ${earlyExitCode}).` +
         (stderr ? ` Stderr: ${stderr.slice(-500)}` : "")
       );
     }
 
-    // Initialize
-    await this.request("initialize", {
-      protocolVersion: 1,
-      clientInfo: { name: "siege", version: "0.1.0" },
-      capabilities: {
-        fs: { readTextFile: true, writeTextFile: true },
-        terminal: true,
-      },
-    });
+    // Initialize — retry up to 3 times (agent may need more time)
+    let initError: Error | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await this.request("initialize", {
+          protocolVersion: 1,
+          clientInfo: { name: "siege", version: "0.1.0" },
+          capabilities: {
+            fs: { readTextFile: true, writeTextFile: true },
+            terminal: true,
+          },
+        });
+        initError = null;
+        break;
+      } catch (e) {
+        initError = e instanceof Error ? e : new Error(String(e));
+        if (attempt < 2) await new Promise(r => setTimeout(r, 3000));
+      }
+    }
+    if (initError) throw initError;
   }
 
   async createSession(model?: string): Promise<AcpSessionInfo> {
