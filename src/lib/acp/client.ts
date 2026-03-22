@@ -253,7 +253,7 @@ export class AcpClient {
         // Notification (no id) — just log
         if (msg.id === undefined && msg.method) {
           if (msg.method !== "session/update") {
-            console.log(`[acp] notification: ${msg.method}`);
+            // non-update notification — ignore
           }
           continue;
         }
@@ -307,13 +307,12 @@ export class AcpClient {
       // Known non-content events — ignore silently
     } else {
       // Truly unknown event
-      console.log(`[acp] unhandled event: ${u.sessionUpdate}`);
+      // silently ignore unknown events
     }
   }
 
   private handleAgentRequest(id: number, method: string, params: Record<string, unknown>): void {
     let result: unknown = {};
-    console.log(`[acp] request: ${method}`, method === "fs/write_text_file" ? (params?.uri as string)?.slice(-60) : "");
 
     if (method === "session/request_permission") {
       // Auto-approve all permissions — options may be at params.options or params.permission.options
@@ -321,7 +320,6 @@ export class AcpClient {
         || ((params?.permission as Record<string, unknown>)?.options as Array<{ optionId: string }> | undefined);
       const allowOption = options?.find(o => o.optionId === "allow_always") || options?.find(o => o.optionId === "allow") || options?.[0];
       const selectedId = allowOption?.optionId || "allow_always";
-      console.log(`[acp] permission: found ${options?.length ?? 0} options, selected: ${selectedId}`);
       result = { outcome: { outcome: "selected", optionId: selectedId } };
     } else if (method === "fs/read_text_file") {
       const uri = (params?.uri as string) || "";
@@ -342,7 +340,6 @@ export class AcpClient {
         filePath = require("path").resolve(this.repoPath, filePath);
       }
       const text = (params?.text as string) || "";
-      console.log(`[acp] write: ${filePath} (${text.length} bytes)`);
       try {
         const dir = require("path").dirname(filePath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -350,7 +347,6 @@ export class AcpClient {
         if (this.onWrite) this.onWrite(filePath, text);
         result = {};
       } catch (e) {
-        console.error(`[acp] write failed:`, e);
         result = { error: String(e) };
       }
     } else if (method === "terminal/create") {
@@ -415,10 +411,6 @@ export class AcpClient {
       result = {};
     }
 
-    const response = { jsonrpc: "2.0", id, result };
-    if (method === "session/request_permission") {
-      console.log(`[acp] permission response:`, JSON.stringify(response));
-    }
-    this.send(response);
+    this.send({ jsonrpc: "2.0", id, result });
   }
 }
