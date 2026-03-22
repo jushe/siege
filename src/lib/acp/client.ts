@@ -322,7 +322,7 @@ export class AcpClient {
       const allowOption = options?.find(o => o.optionId === "allow_always") || options?.find(o => o.optionId === "allow") || options?.[0];
       const selectedId = allowOption?.optionId || "allow_always";
       console.log(`[acp] permission: found ${options?.length ?? 0} options, selected: ${selectedId}`);
-      result = { outcome: { type: "selected", optionId: selectedId } };
+      result = { outcome: { outcome: "selected", optionId: selectedId } };
     } else if (method === "fs/read_text_file") {
       const uri = (params?.uri as string) || "";
       let filePath = uri.replace("file://", "");
