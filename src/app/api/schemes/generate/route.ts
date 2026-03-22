@@ -256,8 +256,7 @@ export async function POST(req: NextRequest) {
   const resolved = resolveStepConfig("scheme", provider as string, model);
 
   // --- Interactive mode: two-phase generation with user Q&A ---
-  // Skip interactive for ACP — Claude Code does its own exploration
-  if (interactive && resolved.provider !== "acp" && resolved.provider !== "codex-acp") {
+  if (interactive) {
     const generationId = crypto.randomUUID();
     const session = createSession(generationId, planId);
     const hasChinese = /[\u4e00-\u9fff]/.test(plan.description || plan.name);
@@ -268,18 +267,6 @@ export async function POST(req: NextRequest) {
           // Phase 1: Generate questions
           controller.enqueue(sseEncode("text", hasChinese ? "AI 正在分析项目，准备设计决策问题...\n" : "AI analyzing project for design decisions...\n"));
 
-          let configuredModel;
-          try {
-            configuredModel = getStepModel("scheme", provider as string, model);
-          } catch (err) {
-            // Fallback to non-interactive
-            controller.enqueue(sseEncode("fallback", { reason: err instanceof Error ? err.message : String(err) }));
-            controller.enqueue(sseEncode("done", {}));
-            controller.close();
-            removeSession(generationId);
-            return;
-          }
-
           const analysisPrompt = buildAnalysisPrompt(
             plan.name,
             plan.description || "",
@@ -287,18 +274,40 @@ export async function POST(req: NextRequest) {
             hasChinese,
           );
 
-          // Stream the analysis so user sees progress
-          const analysisStream = streamText({
-            model: configuredModel,
-            prompt: analysisPrompt,
-          });
           let analysisText = "";
-          for await (const part of analysisStream.fullStream) {
-            if (part.type === "text-delta") {
-              analysisText += part.text;
-              // Send dots as progress indicator
-              if (analysisText.length % 200 < 10) {
+
+          if (resolved.provider === "acp" || resolved.provider === "codex-acp") {
+            // ACP: use Claude Code for analysis
+            const acpClient = new AcpClient(cwd, resolved.provider === "codex-acp" ? "codex" : "claude");
+            await acpClient.start();
+            const acpSession = await acpClient.createSession(resolved.model);
+            await acpClient.prompt(acpSession.sessionId, analysisPrompt, (t, text) => {
+              if (t === "text") {
+                analysisText += text;
                 controller.enqueue(sseEncode("text", "."));
+              } else if (t === "tool") {
+                controller.enqueue(sseEncode("text", text));
+              }
+            });
+          } else {
+            // SDK: stream analysis
+            let configuredModel;
+            try {
+              configuredModel = getStepModel("scheme", provider as string, model);
+            } catch (err) {
+              controller.enqueue(sseEncode("fallback", { reason: err instanceof Error ? err.message : String(err) }));
+              controller.enqueue(sseEncode("done", {}));
+              controller.close();
+              removeSession(generationId);
+              return;
+            }
+            const analysisStream = streamText({ model: configuredModel, prompt: analysisPrompt });
+            for await (const part of analysisStream.fullStream) {
+              if (part.type === "text-delta") {
+                analysisText += part.text;
+                if (analysisText.length % 200 < 10) {
+                  controller.enqueue(sseEncode("text", "."));
+                }
               }
             }
           }
@@ -369,16 +378,28 @@ export async function POST(req: NextRequest) {
             hasChinese,
           );
 
-          const synthResult = streamText({
-            model: configuredModel,
-            prompt: synthesisPrompt,
-          });
-
           let schemeText = "";
-          for await (const part of synthResult.fullStream) {
-            if (part.type === "text-delta") {
-              schemeText += part.text;
-              controller.enqueue(sseEncode("text", part.text));
+
+          if (resolved.provider === "acp" || resolved.provider === "codex-acp") {
+            const acpClient = new AcpClient(cwd, resolved.provider === "codex-acp" ? "codex" : "claude");
+            await acpClient.start();
+            const acpSession = await acpClient.createSession(resolved.model);
+            await acpClient.prompt(acpSession.sessionId, synthesisPrompt, (t, text) => {
+              if (t === "text") {
+                schemeText += text;
+                controller.enqueue(sseEncode("text", text));
+              } else if (t === "tool") {
+                controller.enqueue(sseEncode("text", text));
+              }
+            });
+          } else {
+            const configuredModel = getStepModel("scheme", provider as string, model);
+            const synthResult = streamText({ model: configuredModel, prompt: synthesisPrompt });
+            for await (const part of synthResult.fullStream) {
+              if (part.type === "text-delta") {
+                schemeText += part.text;
+                controller.enqueue(sseEncode("text", part.text));
+              }
             }
           }
 
