@@ -575,7 +575,7 @@ export function ReviewPanel({
                 }}
               >
                 <CheckIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
-                  ? (isZh ? "通过方案" : "Approve")
+                  ? (isZh ? "通过审查" : "Approve Review")
                   : (isZh ? "通过并进入测试" : "Accept & Test")}
               </Button>
               <Button
@@ -602,7 +602,7 @@ export function ReviewPanel({
                 }}
               >
                 <XIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
-                  ? (isZh ? "驳回方案" : "Reject")
+                  ? (isZh ? "驳回审查" : "Reject Review")
                   : (isZh ? "返回排期修复" : "Rework")}
               </Button>
             </div>
