@@ -511,6 +511,39 @@ export function OnboardingGuide({ locale, onComplete }: OnboardingGuideProps) {
               )}
             </div>
 
+            {/* Default provider selection */}
+            {anyAiConfigured && (
+              <div className="rounded-lg border bg-white p-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: "var(--foreground)" }}>
+                  {isZh ? "默认 AI 引擎" : "Default AI Engine"}
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    ...(claudeStatus?.loggedIn ? [{ id: "acp", label: "Claude Code", desc: isZh ? "推荐，无需 API Key" : "Recommended, no API key needed" }] : []),
+                    ...(aiStatus?.anthropic?.configured ? [{ id: "anthropic", label: "Anthropic API", desc: isZh ? "需要 API Key" : "Requires API key" }] : []),
+                    ...(aiStatus?.openai?.configured ? [{ id: "openai", label: "OpenAI API", desc: isZh ? "需要 API Key" : "Requires API key" }] : []),
+                    ...(aiStatus?.glm?.configured ? [{ id: "glm", label: "GLM API", desc: isZh ? "需要 API Key" : "Requires API key" }] : []),
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={async () => {
+                        await fetch("/api/settings", {
+                          method: "PUT",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ default_provider: p.id }),
+                        });
+                      }}
+                      className="flex-1 min-w-[120px] px-3 py-2 rounded-lg border text-left hover:opacity-80"
+                      style={{ borderColor: "var(--card-border)" }}
+                    >
+                      <span className="text-sm font-medium block">{p.label}</span>
+                      <span className="text-[10px] text-gray-400">{p.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between">
               <Button variant="ghost" onClick={() => setStep("github")}>{t("common.back")}</Button>
               <Button size="lg" onClick={() => setStep("concept")} disabled={aiStatus !== null && !anyAiConfigured}>
