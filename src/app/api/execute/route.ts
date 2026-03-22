@@ -54,7 +54,33 @@ function getHeadHash(cwd: string): string {
   }
 }
 
-function captureFileSnapshots(itemId: string, cwd: string, beforeHash: string) {
+/** Snapshot working tree state before task execution */
+function snapshotWorkingTree(cwd: string): Map<string, string> {
+  const snapshot = new Map<string, string>();
+  try {
+    // Get all tracked files that have uncommitted changes
+    const dirty = execSync("git diff HEAD --name-only", {
+      cwd, encoding: "utf-8", timeout: 5000,
+    }).trim().split("\n").filter(Boolean);
+    for (const fp of dirty) {
+      try {
+        snapshot.set(fp, fs.readFileSync(path.join(cwd, fp), "utf-8"));
+      } catch { /* deleted */ }
+    }
+    // Also snapshot untracked files
+    const untracked = execSync("git ls-files --others --exclude-standard", {
+      cwd, encoding: "utf-8", timeout: 5000,
+    }).trim().split("\n").filter(Boolean);
+    for (const fp of untracked) {
+      try {
+        snapshot.set(fp, fs.readFileSync(path.join(cwd, fp), "utf-8"));
+      } catch { /* skip */ }
+    }
+  } catch { /* ignore */ }
+  return snapshot;
+}
+
+function captureFileSnapshots(itemId: string, cwd: string, beforeHash: string, beforeSnapshot: Map<string, string>) {
   try {
     const afterHash = getHeadHash(cwd);
 
@@ -66,50 +92,57 @@ function captureFileSnapshots(itemId: string, cwd: string, beforeHash: string) {
       }).trim().split("\n").filter(Boolean);
     }
 
-    // Uncommitted changes (staged + unstaged, relative to current HEAD)
-    const uncommittedFiles = execSync("git diff HEAD --name-only", {
+    // Uncommitted changes — compare working tree to pre-task snapshot
+    const currentDirty = execSync("git diff HEAD --name-only", {
       cwd, encoding: "utf-8", timeout: 5000,
     }).trim().split("\n").filter(Boolean);
 
-    // Only include untracked files that were created during this task
-    // (i.e., after beforeHash). Skip pre-existing untracked files.
-    let untrackedFiles: string[] = [];
-    if (beforeHash && beforeHash !== afterHash) {
-      // New files added in commits between beforeHash..afterHash
-      try {
-        untrackedFiles = execSync(`git diff --name-only --diff-filter=A ${beforeHash}..${afterHash}`, {
-          cwd, encoding: "utf-8", timeout: 5000,
-        }).trim().split("\n").filter(Boolean);
-      } catch { /* ignore */ }
+    // Only include uncommitted files that actually changed during THIS task
+    const uncommittedFiles: string[] = [];
+    for (const fp of currentDirty) {
+      let currentContent = "";
+      try { currentContent = fs.readFileSync(path.join(cwd, fp), "utf-8"); } catch { /* deleted */ }
+      const prevContent = beforeSnapshot.get(fp) ?? "";
+      if (currentContent !== prevContent) {
+        uncommittedFiles.push(fp);
+      }
+    }
+    // Check for new untracked files that didn't exist before
+    const currentUntracked = execSync("git ls-files --others --exclude-standard", {
+      cwd, encoding: "utf-8", timeout: 5000,
+    }).trim().split("\n").filter(Boolean);
+    for (const fp of currentUntracked) {
+      if (!beforeSnapshot.has(fp)) {
+        uncommittedFiles.push(fp);
+      }
     }
 
-    const allFiles = [...new Set([...committedFiles, ...uncommittedFiles, ...untrackedFiles])];
+    const allFiles = [...new Set([...committedFiles, ...uncommittedFiles])];
     if (allFiles.length === 0) return;
 
     const db = getDb();
     for (const filePath of allFiles) {
-      // contentBefore: file at beforeHash (pre-task state)
-      let contentBefore = "";
-      try {
-        contentBefore = execSync(`git show ${beforeHash}:${filePath}`, {
-          cwd, encoding: "utf-8", timeout: 5000,
-        });
-      } catch { /* new file */ }
+      // contentBefore: from pre-task snapshot if dirty, or from git at beforeHash
+      let contentBefore = beforeSnapshot.get(filePath) ?? "";
+      if (!contentBefore && beforeHash) {
+        try {
+          contentBefore = execSync(`git show ${beforeHash}:${filePath}`, {
+            cwd, encoding: "utf-8", timeout: 5000,
+          });
+        } catch { /* new file */ }
+      }
 
-      // contentAfter: file at afterHash for committed files, or working tree for uncommitted
+      // contentAfter: committed version or working tree
       let contentAfter = "";
-      if (committedFiles.includes(filePath)) {
-        // Use the committed version at afterHash (not working tree which may have later tasks' changes)
+      if (committedFiles.includes(filePath) && afterHash) {
         try {
           contentAfter = execSync(`git show ${afterHash}:${filePath}`, {
             cwd, encoding: "utf-8", timeout: 5000,
           });
-        } catch { /* deleted in commit */ }
+        } catch { /* deleted */ }
       } else {
-        // Uncommitted/untracked: read from working tree
-        const fullPath = path.join(cwd, filePath);
         try {
-          contentAfter = fs.readFileSync(fullPath, "utf-8");
+          contentAfter = fs.readFileSync(path.join(cwd, filePath), "utf-8");
         } catch { /* deleted */ }
       }
 
@@ -436,13 +469,16 @@ ${item.description || ""}
 
 ${skillsContent ? `Skills context:\n${skillsContent}` : ""}
 
-Implement the changes directly. Only read files you need to modify. Do NOT scan the entire codebase — focus on the specific files relevant to this task.`;
+Implement the changes directly. Only read files you need to modify. Do NOT scan the entire codebase — focus on the specific files relevant to this task.
+
+After implementing, commit your changes with a descriptive commit message following the project's conventions. Read the project's CLAUDE.md or CONTRIBUTING.md if available for commit message style. Stage only the files you changed.`;
 
   const cwd = fs.existsSync(project.targetRepoPath) ? project.targetRepoPath : process.cwd();
   const engine = item.engine || "claude-code";
   const encoder = new TextEncoder();
   let fullLog = "";
   const beforeHash = getHeadHash(cwd);
+  const beforeSnapshot = snapshotWorkingTree(cwd);
 
   // ACP engine: use Agent Client Protocol with session reuse per project
   if (engine === "acp" || engine === "codex-acp") {
@@ -501,7 +537,8 @@ Implement the changes directly. Only read files you need to modify. Do NOT scan 
             .where(eq(scheduleItems.id, itemId))
             .run();
 
-          captureFileSnapshots(itemId, cwd, beforeHash);
+
+          captureFileSnapshots(itemId, cwd, beforeHash, beforeSnapshot);
           resolveRelatedFindings(itemId);
 
           controller.close();
@@ -577,7 +614,7 @@ Implement the changes directly. Only read files you need to modify. Do NOT scan 
           .where(eq(scheduleItems.id, itemId))
           .run();
 
-        captureFileSnapshots(itemId, cwd, beforeHash);
+        captureFileSnapshots(itemId, cwd, beforeHash, beforeSnapshot);
         resolveRelatedFindings(itemId);
         controller.close();
       } catch (err) {
