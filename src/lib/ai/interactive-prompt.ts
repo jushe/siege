@@ -18,6 +18,7 @@ export function buildAnalysisPrompt(
   planDescription: string,
   projectDescription: string,
   hasChinese: boolean,
+  idea?: string,
 ): string {
   const lang = hasChinese
     ? "用中文输出所有内容。"
@@ -30,6 +31,7 @@ ${lang}
 Project: ${projectDescription || "(no description)"}
 Plan: ${planName}
 Requirements: ${planDescription}
+${idea ? `\nUser's approach / initial ideas:\n${idea}\nTake these ideas into account when formulating questions — avoid asking about things the user has already decided.\n` : ""}
 
 Your task: Identify 2-4 KEY DESIGN DECISIONS that the user should make before you generate the full technical scheme.
 
@@ -66,6 +68,7 @@ export function buildSynthesisPrompt(
   schemeSummary: string,
   qaHistory: QAEntry[],
   hasChinese: boolean,
+  idea?: string,
 ): string {
   const lang = hasChinese
     ? "用中文输出完整的技术方案。"
@@ -84,6 +87,7 @@ ${lang}
 Project: ${projectDescription || "(no description)"}
 Plan: ${planName}
 Requirements: ${planDescription}
+${idea ? `\nUser's approach / initial ideas:\n${idea}\nIncorporate these ideas into the scheme design.\n` : ""}
 
 ${decisions}
 

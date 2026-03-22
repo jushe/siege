@@ -15,7 +15,7 @@ interface SkillSummary {
 interface GenerateSchemeDialogProps {
   open: boolean;
   onClose: () => void;
-  onGenerate: (provider: string, skills: string[], model?: string, interactive?: boolean) => void;
+  onGenerate: (provider: string, skills: string[], model?: string, interactive?: boolean, idea?: string) => void;
   generating: boolean;
 }
 
@@ -33,6 +33,7 @@ export function GenerateSchemeDialog({
   const [provider, setProvider] = useState("");
   const [model, setModel] = useState("");
   const [interactiveMode, setInteractiveMode] = useState(true);
+  const [idea, setIdea] = useState("");
 
   useEffect(() => {
     if (defaultProvider && !provider) setProvider(defaultProvider);
@@ -90,6 +91,21 @@ export function GenerateSchemeDialog({
           </div>
         </label>
 
+        {/* User idea / approach */}
+        <div>
+          <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>
+            {isZh ? "基本思路（可选）" : "Your Approach (optional)"}
+          </label>
+          <textarea
+            value={idea}
+            onChange={(e) => setIdea(e.target.value)}
+            placeholder={isZh ? "描述你的初步想法、技术选型、约束条件等..." : "Describe your initial ideas, tech choices, constraints..."}
+            className="w-full rounded-md border px-3 py-2 text-sm resize-none"
+            style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)", minHeight: "80px" }}
+            rows={3}
+          />
+        </div>
+
         {/* Skills */}
         {skills.length > 0 && (
           <div>
@@ -123,7 +139,7 @@ export function GenerateSchemeDialog({
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>{t("common.cancel")}</Button>
           <Button
-            onClick={() => onGenerate(provider, selectedSkills, model || undefined, interactiveMode)}
+            onClick={() => onGenerate(provider, selectedSkills, model || undefined, interactiveMode, idea.trim() || undefined)}
             disabled={generating}
           >
             {generating ? t("common.loading") : t("scheme.generate")}

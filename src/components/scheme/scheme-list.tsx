@@ -143,7 +143,7 @@ export function SchemeList({
     }
   }, [generationId]);
 
-  const handleGenerate = async (provider: string, skills: string[], model?: string, interactive?: boolean) => {
+  const handleGenerate = async (provider: string, skills: string[], model?: string, interactive?: boolean, idea?: string) => {
     setGenerating(true);
     setGenerateDialogOpen(false);
     setStreamingContent("");
@@ -155,7 +155,7 @@ export function SchemeList({
       const res = await fetch("/api/schemes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId, provider, skills, model, interactive }),
+        body: JSON.stringify({ planId, provider, skills, model, interactive, idea }),
       });
 
       if (!res.ok || !res.body) {
@@ -213,7 +213,7 @@ export function SchemeList({
         if (fellBack) {
           // Re-run without interactive mode
           stopLoading();
-          await handleGenerate(provider, skills, model, false);
+          await handleGenerate(provider, skills, model, false, idea);
           return;
         }
       } else {

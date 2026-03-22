@@ -106,7 +106,7 @@ function saveScheme(planId: string, content: string, planStatus: string, planNam
   return true;
 }
 
-function buildPrompt(project: { name: string; targetRepoPath: string; description?: string | null; guidelines?: string | null }, plan: { name: string; description: string | null }, forAcp: boolean) {
+function buildPrompt(project: { name: string; targetRepoPath: string; description?: string | null; guidelines?: string | null }, plan: { name: string; description: string | null }, forAcp: boolean, idea?: string) {
   const projectContext = [
     project.description ? `Project description: ${project.description}` : "",
     project.guidelines ? `Project guidelines:\n${project.guidelines}` : "",
@@ -119,7 +119,7 @@ Plan: ${plan.name}
 
 Description:
 ${plan.description || "No description provided."}
-
+${idea ? `\nUser's approach / initial ideas:\n${idea}\n` : ""}
 ${projectContext}
 
 ${forAcp
@@ -244,8 +244,8 @@ function createProjectTools(repoPath: string) {
 export async function POST(req: NextRequest) {
   const [body, errRes] = await parseJsonBody(req);
   if (errRes) return errRes;
-  const { planId, provider, model, interactive } = body as {
-    planId: string; provider?: string; model?: string; interactive?: boolean;
+  const { planId, provider, model, interactive, idea } = body as {
+    planId: string; provider?: string; model?: string; interactive?: boolean; idea?: string;
   };
 
   if (!planId) return NextResponse.json({ error: "planId required" }, { status: 400 });
@@ -284,6 +284,7 @@ export async function POST(req: NextRequest) {
             plan.description || "",
             project.description || "",
             hasChinese,
+            idea,
           );
 
           let analysisText = "";
@@ -388,6 +389,7 @@ export async function POST(req: NextRequest) {
             schemeSummary,
             getSession(generationId)?.qaHistory || [],
             hasChinese,
+            idea,
           );
 
           let schemeText = "";
@@ -442,7 +444,7 @@ export async function POST(req: NextRequest) {
   const memCtx = loadMemoryContext(project.id);
   const isAcp = resolved.provider === "acp" || resolved.provider === "codex-acp";
 
-  const prompt = buildPrompt(project, plan, isAcp) + (memCtx ? `\n\n${memCtx}` : "");
+  const prompt = buildPrompt(project, plan, isAcp, idea) + (memCtx ? `\n\n${memCtx}` : "");
 
   // ACP engine: use Claude Code / Codex via Agent Client Protocol
   if (resolved.provider === "acp" || resolved.provider === "codex-acp") {
