@@ -54,7 +54,11 @@ function saveScheme(planId: string, content: string, planStatus: string): boolea
 
   const db = getDb();
 
-  // Delete old scheme reviews + findings when regenerating
+  // Delete old schemes + their reviews when regenerating (new replaces old)
+  const oldSchemes = db.select().from(schemes).where(eq(schemes.planId, planId)).all();
+  for (const s of oldSchemes) {
+    db.delete(schemes).where(eq(schemes.id, s.id)).run();
+  }
   const oldReviews = db.select().from(reviews)
     .where(and(eq(reviews.planId, planId), eq(reviews.type, "scheme")))
     .all();
