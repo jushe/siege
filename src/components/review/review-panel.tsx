@@ -248,6 +248,7 @@ export function ReviewPanel({
   const [fixingAll, setFixingAll] = useState(false);
   const [fixPromptItem, setFixPromptItem] = useState<ReviewItem | null>(null);
   const [allResolvedPrompt, setAllResolvedPrompt] = useState(false);
+  const [reviewActing, setReviewActing] = useState(false);
   const [resolvedTaskInfo, setResolvedTaskInfo] = useState<{ id: string; title: string } | null>(null);
 
   /** Check if all findings for the resolved item's task are done */
@@ -553,10 +554,9 @@ export function ReviewPanel({
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
-                onClick={async (e) => {
-                  const btn = e.currentTarget;
-                  btn.disabled = true;
-                  btn.textContent = isZh ? "处理中..." : "Processing...";
+                disabled={reviewActing}
+                onClick={async () => {
+                  setReviewActing(true);
                   if (type === "scheme") {
                     await fetch(`/api/plans/${planId}/confirm`, {
                       method: "POST",
@@ -572,19 +572,21 @@ export function ReviewPanel({
                   }
                   await fetchReviews();
                   onPlanStatusChange();
+                  setReviewActing(false);
                 }}
               >
-                <CheckIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
-                  ? (isZh ? "通过审查" : "Approve Review")
-                  : (isZh ? "通过并进入测试" : "Accept & Test")}
+                {reviewActing
+                  ? (isZh ? "处理中..." : "Processing...")
+                  : <><CheckIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
+                      ? (isZh ? "通过审查" : "Approve Review")
+                      : (isZh ? "通过并进入测试" : "Accept & Test")}</>}
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={async (e) => {
-                  const btn = e.currentTarget;
-                  btn.disabled = true;
-                  btn.textContent = isZh ? "处理中..." : "Processing...";
+                disabled={reviewActing}
+                onClick={async () => {
+                  setReviewActing(true);
                   if (type === "scheme") {
                     await fetch(`/api/plans/${planId}/confirm`, {
                       method: "POST",
@@ -599,11 +601,14 @@ export function ReviewPanel({
                     });
                   }
                   onPlanStatusChange();
+                  setReviewActing(false);
                 }}
               >
-                <XIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
-                  ? (isZh ? "驳回审查" : "Reject Review")
-                  : (isZh ? "返回排期修复" : "Rework")}
+                {reviewActing
+                  ? (isZh ? "处理中..." : "Processing...")
+                  : <><XIcon size={14} className="inline-block align-[-2px]" /> {type === "scheme"
+                      ? (isZh ? "驳回审查" : "Reject Review")
+                      : (isZh ? "返回排期修复" : "Rework")}</>}
               </Button>
             </div>
           )}
