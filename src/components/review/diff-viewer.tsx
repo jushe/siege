@@ -218,7 +218,59 @@ export function DiffViewer({
         )}
       </div>
       <div className="font-mono text-xs">
-        {diffLines.map((line, i) => {
+        {(() => {
+          // Collapse unchanged lines — show only 3 lines of context around changes
+          const CONTEXT = 3;
+          const changedIndices = new Set<number>();
+          diffLines.forEach((line, i) => {
+            if (line.type !== "same") {
+              for (let j = Math.max(0, i - CONTEXT); j <= Math.min(diffLines.length - 1, i + CONTEXT); j++) {
+                changedIndices.add(j);
+              }
+            }
+          });
+          // Also show lines with findings/comments
+          diffLines.forEach((line, i) => {
+            const lineNum = line.type === "remove" ? line.oldLineNumber : line.newLineNumber;
+            if (lineNum && (findingsMap.has(lineNum) || commentsMap.has(lineNum))) {
+              for (let j = Math.max(0, i - CONTEXT); j <= Math.min(diffLines.length - 1, i + CONTEXT); j++) {
+                changedIndices.add(j);
+              }
+            }
+          });
+          // If no changes at all, show first 20 lines
+          if (changedIndices.size === 0) {
+            for (let i = 0; i < Math.min(20, diffLines.length); i++) changedIndices.add(i);
+          }
+
+          let lastShown = -1;
+          return diffLines.map((line, i) => {
+            if (!changedIndices.has(i)) {
+              // Show a collapse indicator at the boundary
+              if (lastShown === i - 1) return null; // skip silently
+              if (i > 0 && changedIndices.has(i + 1)) {
+                // About to show again — render separator
+                const skipped = i - lastShown - 1;
+                lastShown = i;
+                return (
+                  <div key={`sep-${i}`} className="text-center py-1" style={{ background: "var(--card)", color: "var(--muted)" }}>
+                    ··· {skipped} {skipped === 1 ? "line" : "lines"} ···
+                  </div>
+                );
+              }
+              return null;
+            }
+            // Check if we need separator before this line
+            let separator = null;
+            if (lastShown >= 0 && lastShown < i - 1) {
+              const skipped = i - lastShown - 1;
+              separator = (
+                <div key={`sep-${i}`} className="text-center py-1" style={{ background: "var(--card)", color: "var(--muted)" }}>
+                  ··· {skipped} {skipped === 1 ? "line" : "lines"} ···
+                </div>
+              );
+            }
+            lastShown = i;
           const lineNum = line.type === "remove" ? line.oldLineNumber : line.newLineNumber;
           const lineFindings = lineNum ? findingsMap.get(lineNum) : undefined;
           const lineComments = lineNum ? commentsMap.get(lineNum) : undefined;
@@ -232,8 +284,8 @@ export function DiffViewer({
             highlightedHtml = newHighlighted[line.newLineNumber - 1];
           }
 
-          return (
-            <div key={i}>
+          const lineElement = (
+            <div key={`line-${i}`}>
               {/* Diff line */}
               <div
                 className={`flex ${
@@ -376,7 +428,9 @@ export function DiffViewer({
               )}
             </div>
           );
-        })}
+          return separator ? <div key={`wrap-${i}`}>{separator}{lineElement}</div> : lineElement;
+        }).filter(Boolean);
+        })()}
       </div>
     </div>
   );
