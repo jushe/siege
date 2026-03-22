@@ -20,6 +20,85 @@ interface Plan {
   tag: string | null;
 }
 
+const WORKFLOW_STEPS = [
+  { key: "scheme", statusBefore: ["draft", "reviewing"], statusDone: ["confirmed", "scheduled", "executing", "code_review", "testing", "completed"] },
+  { key: "schedule", statusBefore: ["draft", "reviewing", "confirmed"], statusDone: ["scheduled", "executing", "code_review", "testing", "completed"] },
+  { key: "execute", statusBefore: ["draft", "reviewing", "confirmed", "scheduled"], statusDone: ["code_review", "testing", "completed"] },
+  { key: "review", statusBefore: ["draft", "reviewing", "confirmed", "scheduled", "executing"], statusDone: ["testing", "completed"] },
+  { key: "test", statusBefore: ["draft", "reviewing", "confirmed", "scheduled", "executing", "code_review"], statusDone: ["completed"] },
+];
+
+const STEP_LABELS: Record<string, { zh: string; en: string; hint_zh: string; hint_en: string }> = {
+  scheme: { zh: "方案", en: "Scheme", hint_zh: "生成并确认技术方案", hint_en: "Generate & confirm scheme" },
+  schedule: { zh: "排期", en: "Schedule", hint_zh: "生成任务排期", hint_en: "Generate task schedule" },
+  execute: { zh: "执行", en: "Execute", hint_zh: "执行开发任务", hint_en: "Execute dev tasks" },
+  review: { zh: "审查", en: "Review", hint_zh: "代码审查", hint_en: "Code review" },
+  test: { zh: "测试", en: "Test", hint_zh: "运行测试", hint_en: "Run tests" },
+};
+
+// Maps plan status to the active workflow step key
+function getActiveStep(status: string): string {
+  switch (status) {
+    case "draft": case "reviewing": return "scheme";
+    case "confirmed": return "schedule";
+    case "scheduled": case "executing": return "execute";
+    case "code_review": return "review";
+    case "testing": return "test";
+    case "completed": return "done";
+    default: return "scheme";
+  }
+}
+
+function WorkflowSteps({ status, isZh }: { status: string; isZh: boolean }) {
+  const activeStep = getActiveStep(status);
+
+  return (
+    <div className="mb-5 flex items-center gap-1 overflow-x-auto py-2">
+      {WORKFLOW_STEPS.map((step, i) => {
+        const label = STEP_LABELS[step.key];
+        const isDone = step.statusDone.includes(status);
+        const isActive = activeStep === step.key;
+        const isPending = !isDone && !isActive;
+
+        return (
+          <div key={step.key} className="flex items-center">
+            {i > 0 && (
+              <div
+                className="w-6 h-px mx-1"
+                style={{ background: isDone ? "rgba(34,197,94,0.5)" : "var(--card-border)" }}
+              />
+            )}
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap"
+              style={
+                isActive
+                  ? { background: "var(--foreground)", color: "var(--background)" }
+                  : isDone
+                    ? { background: "rgba(34,197,94,0.15)", color: "#86efac" }
+                    : { background: "var(--card)", color: "var(--muted)", borderColor: "var(--card-border)", borderWidth: 1, borderStyle: "solid" }
+              }
+              title={isZh ? label.hint_zh : label.hint_en}
+            >
+              {isDone && <span>✓</span>}
+              {isActive && <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />}
+              <span>{isZh ? label.zh : label.en}</span>
+            </div>
+          </div>
+        );
+      })}
+      {status === "completed" && (
+        <div className="flex items-center">
+          <div className="w-6 h-px mx-1" style={{ background: "rgba(34,197,94,0.5)" }} />
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium"
+            style={{ background: "rgba(34,197,94,0.15)", color: "#86efac" }}>
+            ✓ <span>{isZh ? "完成" : "Done"}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PlanDetailPage({
   params,
 }: {
@@ -138,6 +217,8 @@ export default function PlanDetailPage({
           </>
         )}
       </div>
+
+      <WorkflowSteps status={plan.status} isZh={isZh} />
 
       <PlanTabs
         planId={plan.id}
