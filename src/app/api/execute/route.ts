@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import {
   scheduleItems,
   schedules,
+  schemes,
   plans,
   projects,
   fileSnapshots,
@@ -412,7 +413,17 @@ export async function POST(req: NextRequest) {
 
   const memoryContext = loadMemoryContext(project.id);
 
-  const prompt = `${memoryContext ? `${memoryContext}\n\n---\n` : ""}${previousTasks ? `Context — other tasks in this plan:\n${previousTasks}\n\n---\n` : ""}Implement task #${item.order}: ${item.title}
+  // Load linked scheme summary (truncated) for cross-provider context
+  let schemeContext = "";
+  if (item.schemeId) {
+    const scheme = db.select().from(schemes).where(eq(schemes.id, item.schemeId)).get();
+    if (scheme?.content) {
+      const truncated = scheme.content.length > 1500 ? scheme.content.slice(0, 1500) + "\n...(truncated)" : scheme.content;
+      schemeContext = `Technical scheme context:\n${truncated}`;
+    }
+  }
+
+  const prompt = `${memoryContext ? `${memoryContext}\n\n---\n` : ""}${schemeContext ? `${schemeContext}\n\n---\n` : ""}${previousTasks ? `Other tasks in this plan:\n${previousTasks}\n\n---\n` : ""}Implement task #${item.order}: ${item.title}
 
 ${item.description || ""}
 
