@@ -451,6 +451,9 @@ export default function SettingsPage({
         </div>
       </section>
 
+      {/* Memories */}
+      <MemorySection isZh={isZh} />
+
       {/* Import Sources */}
       <ImportSourcesSection isZh={isZh} />
 
@@ -957,6 +960,154 @@ function StepModelSection({
         </Button>
         {saved && <span className="text-sm text-green-600">✓</span>}
       </div>
+    </section>
+  );
+}
+
+interface MemoryItem {
+  id: string;
+  projectId: string | null;
+  type: string;
+  title: string;
+  content: string;
+  source: string;
+  createdAt: string;
+}
+
+function MemorySection({ isZh }: { isZh: boolean }) {
+  const [items, setItems] = useState<MemoryItem[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState({ title: "", content: "", type: "user" });
+
+  const fetch_ = () => {
+    fetch("/api/memories").then(r => r.json()).then(setItems).catch(() => {});
+  };
+  useEffect(() => { fetch_(); }, []);
+
+  const handleSave = async () => {
+    if (!form.title.trim()) return;
+    if (editId) {
+      await fetch(`/api/memories/${editId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+    } else {
+      await fetch("/api/memories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, source: "manual" }),
+      });
+    }
+    setAddOpen(false);
+    setEditId(null);
+    setForm({ title: "", content: "", type: "user" });
+    fetch_();
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/memories/${id}`, { method: "DELETE" });
+    fetch_();
+  };
+
+  const typeLabel = (t: string) => {
+    const map: Record<string, string> = {
+      project: isZh ? "项目" : "Project",
+      user: isZh ? "用户" : "User",
+      feedback: isZh ? "反馈" : "Feedback",
+    };
+    return map[t] || t;
+  };
+
+  return (
+    <section className="mb-8">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-semibold">
+          <>{isZh ? "记忆" : "Memories"}</> ({items.length})
+        </h2>
+        <Button size="sm" onClick={() => { setForm({ title: "", content: "", type: "user" }); setEditId(null); setAddOpen(true); }}>
+          {isZh ? "添加记忆" : "Add Memory"}
+        </Button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-sm" style={{ color: "var(--muted)" }}>
+          {isZh ? "暂无记忆。AI 执行任务后会自动学习，你也可以手动添加。" : "No memories yet. AI learns automatically, or add manually."}
+        </p>
+      ) : (
+        <div className="rounded-lg border divide-y" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          {items.map((m) => (
+            <div key={m.id} className="px-4 py-3">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium" style={{ color: "var(--foreground)" }}>{m.title}</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "var(--card-border)", color: "var(--muted)" }}>
+                      {typeLabel(m.type)}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{
+                      background: m.source === "auto" ? "rgba(59,130,246,0.15)" : "rgba(124,58,237,0.15)",
+                      color: m.source === "auto" ? "#93c5fd" : "#c4b5fd",
+                    }}>
+                      {m.source === "auto" ? (isZh ? "自动" : "Auto") : (isZh ? "手动" : "Manual")}
+                    </span>
+                  </div>
+                  <p className="text-xs mt-0.5" style={{ color: "var(--muted)" }}>{m.content}</p>
+                </div>
+                <div className="flex gap-1 shrink-0 ml-2">
+                  <button
+                    onClick={() => { setForm({ title: m.title, content: m.content, type: m.type }); setEditId(m.id); setAddOpen(true); }}
+                    className="text-xs px-2 py-1 rounded hover:opacity-80"
+                    style={{ color: "var(--muted)" }}
+                  >
+                    {isZh ? "编辑" : "Edit"}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(m.id)}
+                    className="text-xs px-2 py-1 rounded text-red-500 hover:opacity-80"
+                  >
+                    {isZh ? "删除" : "Delete"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {addOpen && (
+        <Dialog
+          open={addOpen}
+          onClose={() => { setAddOpen(false); setEditId(null); }}
+          title={editId ? (isZh ? "编辑记忆" : "Edit Memory") : (isZh ? "添加记忆" : "Add Memory")}
+        >
+          <div className="space-y-3">
+            <Input label={isZh ? "标题" : "Title"} value={form.title} onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))} placeholder={isZh ? "如：技术栈是 Rust + eBPF" : "e.g.: Tech stack is Rust + eBPF"} />
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>{isZh ? "内容" : "Content"}</label>
+              <textarea value={form.content} onChange={(e) => setForm(f => ({ ...f, content: e.target.value }))} rows={3}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}
+                placeholder={isZh ? "详细描述..." : "Details..."} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1" style={{ color: "var(--foreground)" }}>{isZh ? "类型" : "Type"}</label>
+              <select value={form.type} onChange={(e) => setForm(f => ({ ...f, type: e.target.value }))}
+                className="w-full rounded-md border px-3 py-2 text-sm"
+                style={{ background: "var(--card)", color: "var(--foreground)", borderColor: "var(--card-border)" }}>
+                <option value="user">{isZh ? "用户偏好" : "User Preference"}</option>
+                <option value="project">{isZh ? "项目信息" : "Project Info"}</option>
+                <option value="feedback">{isZh ? "反馈/教训" : "Feedback/Lesson"}</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => { setAddOpen(false); setEditId(null); }}>{isZh ? "取消" : "Cancel"}</Button>
+              <Button onClick={handleSave} disabled={!form.title.trim()}>{isZh ? "保存" : "Save"}</Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </section>
   );
 }
