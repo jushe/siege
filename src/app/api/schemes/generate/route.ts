@@ -115,20 +115,30 @@ ${plan.description || "No description provided."}
 Steps:
 1. Use the provided tools to explore the project structure (listDir, readFile, bash)
 2. Read relevant source files to understand the codebase
-3. Generate a Markdown technical scheme with:
-   ## Overview
-   ## Architecture & Definitions (define key types, interfaces, data structures, modules. Focus on WHAT and WHY, not HOW. No code blocks — implementation belongs in the scheduling phase)
-   ## Key Decisions
-   ## Risks & Mitigations
-   ## Estimated Effort
+3. Generate a Markdown technical scheme
 
-IMPORTANT: The scheme is a DESIGN document focused on definitions and architecture, NOT implementation details.
-- Define types, interfaces, data structures, module boundaries
-- Describe relationships and data flow between components
-- Explain trade-offs and rationale for key decisions
-- Do NOT write code blocks, code examples, or implementation snippets
-- Do NOT describe step-by-step implementation procedures
-- Code will be written during the scheduling and execution phase
+You MUST use EXACTLY these section headings:
+
+## Overview
+Brief summary of what this scheme achieves and why.
+
+## Architecture & Definitions
+Define key types, interfaces, data structures, modules, and their relationships. This is the MOST IMPORTANT section — describe data flow, component boundaries, and how pieces connect.
+
+## Key Decisions
+Trade-offs, alternatives considered, and rationale for chosen approach.
+
+## Risks & Mitigations
+Potential issues and how to handle them.
+
+## Estimated Effort
+Rough time estimate.
+
+RULES:
+- Focus on WHAT and WHY, not HOW
+- Define types and interfaces in prose (no code blocks)
+- Do NOT write implementation code or step-by-step procedures
+- The "Architecture & Definitions" section must be the longest and most detailed
 
 Write in the same language as the description.`;
 }
