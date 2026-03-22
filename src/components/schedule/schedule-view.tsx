@@ -11,6 +11,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { MarkdownRenderer } from "@/components/markdown/markdown-renderer";
 import { useGlobalLoading } from "@/components/ui/global-loading";
 import { GitBranchIcon, PlusIcon, RefreshIcon, PlayIcon, SparklesIcon, HourglassIcon, XIcon } from "@/components/ui/icons";
+import { ProviderModelSelect, useDefaultProvider } from "@/components/ui/provider-model-select";
 
 interface ScheduleItem {
   id: string;
@@ -65,6 +66,10 @@ export function ScheduleView({
   const [schedule, setSchedule] = useState<Schedule | null>(null);
   const [gitInfo, setGitInfo] = useState<{ isGit: boolean; currentBranch?: string; branches?: string[] } | null>(null);
   const [generating, setGenerating] = useState(false);
+  const defaultProvider = useDefaultProvider();
+  const [schedProvider, setSchedProvider] = useState("");
+  const [schedModel, setSchedModel] = useState("");
+  useEffect(() => { if (defaultProvider && !schedProvider) setSchedProvider(defaultProvider); }, [defaultProvider]);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
   const [executing, setExecuting] = useState<string | null>(null);
   const [runDialogItem, setRunDialogItem] = useState<ScheduleItem | null>(null);
@@ -226,7 +231,7 @@ export function ScheduleView({
       const res = await fetch("/api/schedules/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ planId }),
+        body: JSON.stringify({ planId, ...(schedProvider && { provider: schedProvider }), ...(schedModel && { model: schedModel }) }),
       });
 
       if (res.ok && res.body) {
@@ -527,13 +532,23 @@ export function ScheduleView({
             </button>
           )}
           {canGenerate && (
-            <Button onClick={handleGenerate} disabled={generating}>
-              {generating
-                ? <><HourglassIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "生成中..." : "Generating..."}</>
-                : schedule
-                  ? <><SparklesIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新生成" : "Regenerate"}</>
-                  : <><SparklesIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "生成排期" : "Generate"}</>}
-            </Button>
+            <>
+              <ProviderModelSelect
+                provider={schedProvider}
+                model={schedModel}
+                onProviderChange={setSchedProvider}
+                onModelChange={setSchedModel}
+                disabled={generating}
+                compact
+              />
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating
+                  ? <><HourglassIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "生成中..." : "Generating..."}</>
+                  : schedule
+                    ? <><SparklesIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新生成" : "Regenerate"}</>
+                    : <><SparklesIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "生成排期" : "Generate"}</>}
+              </Button>
+            </>
           )}
         </div>
       </div>
