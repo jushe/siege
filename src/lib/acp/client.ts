@@ -305,6 +305,7 @@ export class AcpClient {
 
   private handleAgentRequest(id: number, method: string, params: Record<string, unknown>): void {
     let result: unknown = {};
+    console.log(`[acp] request: ${method}`, method === "fs/write_text_file" ? (params?.uri as string)?.slice(-60) : "");
 
     if (method === "session/request_permission") {
       // Auto-approve all permissions
@@ -367,6 +368,30 @@ export class AcpClient {
       const term = this.terminals.get(termId);
       result = { exitCode: term?.exitCode ?? 0 };
     } else if (method === "terminal/kill" || method === "terminal/release") {
+      result = {};
+    } else if (method === "fs/list_directory" || method === "fs/search" || method === "fs/list_text_file") {
+      // Some ACP agents send these — respond with empty success
+      result = { entries: [] };
+    } else if (method === "edit/apply" || method === "fs/edit_text_file") {
+      // Edit operations — apply as write
+      const uri = (params?.uri as string) || "";
+      const filePath = uri.replace("file://", "");
+      const text = (params?.newText as string) || (params?.text as string) || "";
+      if (filePath && text) {
+        try {
+          const dir = require("path").dirname(filePath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(filePath, text, "utf-8");
+          if (this.onWrite) this.onWrite(filePath, text);
+          result = {};
+        } catch (e) {
+          result = { error: String(e) };
+        }
+      } else {
+        result = {};
+      }
+    } else {
+      console.warn(`[acp] unhandled request method: ${method}`, JSON.stringify(params).slice(0, 200));
       result = {};
     }
 
