@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStepModel } from "@/lib/ai/config";
+import { resolveStepConfig, getStepModel } from "@/lib/ai/config";
 import { parseJsonBody } from "@/lib/utils";
 import { generateText } from "ai";
+import { AcpClient } from "@/lib/acp/client";
 
 function cleanTitle(raw: string): string {
   let text = raw;
@@ -19,6 +20,16 @@ function cleanTitle(raw: string): string {
   return text.slice(0, 50);
 }
 
+const TITLE_PROMPT = (description: string) =>
+  `I need you to act as a title generator. Read the following plan description and output ONLY a short title (under 50 characters). No quotes, no markdown, no explanation, no code. Just the title. Match the language of the description.
+
+Plan description:
+"""
+${description}
+"""
+
+Title:`;
+
 export async function POST(req: NextRequest) {
   const [body, errRes] = await parseJsonBody(req);
   if (errRes) return errRes;
@@ -31,6 +42,37 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const resolved = resolveStepConfig("scheme");
+  const prompt = TITLE_PROMPT(description);
+
+  // ACP path
+  if (resolved.provider === "acp" || resolved.provider === "codex-acp") {
+    try {
+      const cwd = process.cwd();
+      const acpClient = new AcpClient(cwd, resolved.provider === "codex-acp" ? "codex" : "claude");
+      await acpClient.start();
+      const session = await acpClient.createSession(resolved.model);
+      if (resolved.model) {
+        await acpClient.setModel(session.sessionId, resolved.model);
+      }
+
+      let result = "";
+      await acpClient.prompt(session.sessionId, prompt, (type, text) => {
+        if (type === "text") result += text;
+      });
+      await acpClient.stop();
+
+      const title = cleanTitle(result);
+      return new Response(title, {
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: msg }, { status: 500 });
+    }
+  }
+
+  // SDK path
   let model;
   try {
     model = getStepModel("scheme");
@@ -42,19 +84,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await generateText({
       model,
-      messages: [
-        {
-          role: "user",
-          content: `I need you to act as a title generator. Read the following plan description and output ONLY a short title (under 50 characters). No quotes, no markdown, no explanation, no code. Just the title. Match the language of the description.
-
-Plan description:
-"""
-${description}
-"""
-
-Title:`,
-        },
-      ],
+      messages: [{ role: "user", content: prompt }],
     });
 
     const title = cleanTitle(result.text);
