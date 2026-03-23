@@ -1001,38 +1001,68 @@ export function ReviewPanel({
             </p>
           </div>
           <div className="space-y-2">
-            <Button
-              className="w-full"
-              onClick={async () => {
-                setAllResolvedPrompt(false);
-                // Generate tests for this specific task
-                if (resolvedTaskInfo) {
-                  await fetch("/api/test-suites/generate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      planId,
-                      scheduleItemIds: [resolvedTaskInfo.id],
-                    }),
-                  });
-                }
-                onPlanStatusChange();
-              }}
-            >
-              <FlaskIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "为该任务生成测试" : "Generate Tests for This Task"}
-            </Button>
-            <Button
-              variant="secondary"
-              className="w-full"
-              onClick={async () => {
-                setAllResolvedPrompt(false);
-                // Re-review this specific task
-                setReviewTaskId(resolvedTaskInfo?.id || "");
-                handleGenerate();
-              }}
-            >
-              <RefreshIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新审查该任务" : "Re-review This Task"}
-            </Button>
+            {type === "scheme" ? (
+              <>
+                <Button
+                  className="w-full"
+                  onClick={async () => {
+                    setAllResolvedPrompt(false);
+                    // Confirm scheme → plan enters "confirmed" status → can generate schedule
+                    await fetch(`/api/plans/${planId}/confirm`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ action: "confirm" }),
+                    });
+                    onPlanStatusChange();
+                  }}
+                >
+                  <CheckIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "确认方案，生成排期" : "Confirm & Generate Schedule"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={async () => {
+                    setAllResolvedPrompt(false);
+                    handleGenerate();
+                  }}
+                >
+                  <RefreshIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新审查" : "Re-review"}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  className="w-full"
+                  onClick={async () => {
+                    setAllResolvedPrompt(false);
+                    if (resolvedTaskInfo) {
+                      await fetch("/api/test-suites/generate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          planId,
+                          scheduleItemIds: [resolvedTaskInfo.id],
+                        }),
+                      });
+                    }
+                    onPlanStatusChange();
+                  }}
+                >
+                  <FlaskIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "为该任务生成测试" : "Generate Tests for This Task"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={async () => {
+                    setAllResolvedPrompt(false);
+                    setReviewTaskId(resolvedTaskInfo?.id || "");
+                    handleGenerate();
+                  }}
+                >
+                  <RefreshIcon size={14} className="inline-block align-[-2px]" /> {isZh ? "重新审查该任务" : "Re-review This Task"}
+                </Button>
+              </>
+            )}
             <Button
               variant="ghost"
               className="w-full"
