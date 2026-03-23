@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { EventEmitter } from "events";
 
 export interface CliRunnerOptions {
-  engine: "claude-code" | "codex";
+  engine: "claude-code" | "codex" | "copilot";
   prompt: string;
   cwd: string;
   skillsContent?: string;
@@ -47,6 +47,9 @@ export function executeTask(
   if (options.engine === "claude-code") {
     command = "claude";
     args = ["-p", fullPrompt, "--output-format", "text"];
+  } else if (options.engine === "copilot") {
+    command = "gh";
+    args = ["copilot", "suggest", "-t", "shell", fullPrompt];
   } else {
     command = "codex";
     args = ["--prompt", fullPrompt];

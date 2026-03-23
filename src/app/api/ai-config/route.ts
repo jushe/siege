@@ -17,6 +17,12 @@ interface AiConfigStatus {
   glm: ProviderStatus;
 }
 
+interface CopilotStatus {
+  installed: boolean;
+  loggedIn: boolean;
+  username?: string;
+}
+
 function maskKey(key: string | undefined): string {
   if (!key) return "";
   if (key.length <= 8) return "***";
@@ -126,16 +132,34 @@ function checkCodexLogin(): { installed: boolean; loggedIn: boolean; method?: st
   }
 }
 
+function checkCopilotLogin(): CopilotStatus {
+  try {
+    execSync("which gh", { encoding: "utf-8", timeout: 3000 });
+  } catch {
+    return { loggedIn: false, installed: false };
+  }
+  try {
+    const output = execSync("gh auth status 2>&1", { encoding: "utf-8", timeout: 5000 });
+    const loggedIn = output.includes("Logged in to");
+    const usernameMatch = output.match(/account\s+(\S+)/);
+    return { loggedIn, installed: true, username: usernameMatch?.[1] };
+  } catch {
+    return { loggedIn: false, installed: true };
+  }
+}
+
 // GET: check AI config status
 export async function GET() {
   const claude = checkClaudeLogin();
   const codex = checkCodexLogin();
+  const copilot = checkCopilotLogin();
   const status = {
     anthropic: getProviderStatus("anthropic"),
     openai: getProviderStatus("openai"),
     glm: getProviderStatus("glm"),
     claude: { installed: claude.installed, loggedIn: claude.loggedIn, email: claude.email, subscriptionType: claude.subscriptionType },
     codex: { installed: codex.installed, loggedIn: codex.loggedIn, method: codex.method },
+    copilot: { installed: copilot.installed, loggedIn: copilot.loggedIn, username: copilot.username },
   };
   return NextResponse.json(status);
 }
