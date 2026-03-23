@@ -43,6 +43,7 @@ interface AiConfig {
   glm: ProviderStatus;
   claude?: { installed: boolean; loggedIn: boolean; email?: string; subscriptionType?: string };
   codex?: { installed: boolean; loggedIn: boolean; method?: string };
+  copilot?: { installed: boolean; loggedIn: boolean; username?: string };
 }
 
 interface SkillSummary {
@@ -259,6 +260,49 @@ export default function SettingsPage({
           )}
         </div>
 
+        {/* Copilot Login — for Copilot ACP engine */}
+        <div className="rounded-lg border p-4 mb-3" style={{ background: "var(--card)", borderColor: "var(--card-border)" }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="font-medium text-sm"><ZapIcon size={14} className="inline-block align-[-2px]" /> Copilot</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">ACP</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {aiConfig?.copilot?.loggedIn ? (
+                <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                  ✓ {aiConfig.copilot.username || (isZh ? "已登录" : "Logged in")}
+                </span>
+              ) : aiConfig?.copilot?.installed ? (
+                <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full">
+                  {isZh ? "未登录" : "Not logged in"}
+                </span>
+              ) : (
+                <span className="text-xs" style={{ color: "var(--muted)" }}>
+                  {isZh ? "未安装" : "Not installed"}
+                </span>
+              )}
+            </div>
+          </div>
+          {aiConfig?.copilot?.loggedIn ? (
+            <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
+              {isZh
+                ? "任务排期中选择「Copilot (ACP)」引擎即可使用"
+                : "Select 'Copilot (ACP)' engine in task scheduler"}
+            </p>
+          ) : aiConfig?.copilot?.installed ? (
+            <div className="mt-2 flex items-center gap-2">
+              <code className="text-xs px-2 py-1 rounded font-mono select-all" style={{ background: "var(--background)", color: "var(--foreground)" }}>gh auth login</code>
+              <Button variant="ghost" size="sm" onClick={() => fetch("/api/ai-config").then(r => r.json()).then(setAiConfig)}>
+                {isZh ? "刷新状态" : "Refresh"}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs mt-2" style={{ color: "var(--muted)" }}>
+              {isZh ? "请先安装 GitHub CLI (gh)" : "Install GitHub CLI (gh) first"}
+            </p>
+          )}
+        </div>
+
         <div className="space-y-3">
           {PROVIDERS.map((prov) => {
             const status = aiConfig?.[prov.id as keyof AiConfig] as ProviderStatus | undefined;
@@ -455,6 +499,7 @@ export default function SettingsPage({
             >
               <option value="acp">Claude Code (ACP)</option>
               <option value="codex-acp">Codex (ACP)</option>
+              <option value="copilot-acp">Copilot (ACP)</option>
               <option value="anthropic">Anthropic (Claude)</option>
               <option value="openai">OpenAI (GPT)</option>
               <option value="glm">GLM (智谱)</option>
