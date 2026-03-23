@@ -1,4 +1,5 @@
 import { PlanList } from "@/components/plan/plan-list";
+import { ProjectDescription } from "@/components/project/project-description";
 import { getDb } from "@/lib/db";
 import { projects } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -32,7 +33,7 @@ export default async function ProjectDetailPage({
         </a>
         <h1 className="text-3xl font-bold mt-2">{project.name}</h1>
         {project.description && (
-          <p className="text-gray-500 mt-1">{project.description}</p>
+          <ProjectDescription content={project.description} />
         )}
         <p className="text-xs text-gray-400 font-mono mt-1">
           {project.targetRepoPath}
